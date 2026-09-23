@@ -3,10 +3,11 @@ import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {visibleGraph,layout} from '../src/graph.js';
 const browser=await chromium.launch({channel:'msedge',headless:true});
-const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
+const base=process.env.AML_TEST_URL||'http://127.0.0.1:8000';
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
- await page.goto('http://127.0.0.1:8000');
+ await page.goto(base);
  const analysisResponse=page.waitForResponse(r=>r.url().endsWith('/api/analyze'));
  await page.getByRole('button',{name:'Run analysis'}).click();
  const data=await (await analysisResponse).json();
@@ -20,7 +21,7 @@ try{
  await page.getByRole('button',{name:'Zoom in'}).click();
  await page.getByRole('button',{name:'Fit view'}).click();
  const canvas=await page.locator('canvas').boundingBox();
- const graph=visibleGraph(data,gid,'neighborhood','all'),positions=layout(graph.nodes);
+ const graph=visibleGraph(data,gid,'neighborhood','all'),positions=layout(graph.nodes,gid);
  const xs=[...positions.values()].map(p=>p.x),ys=[...positions.values()].map(p=>p.y);
  const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;
  const k=Math.min(2.5,(canvas.width-70)/(maxX-minX),(canvas.height-100)/(maxY-minY));
@@ -51,7 +52,7 @@ try{
  await page.getByRole('combobox',{name:'Language'}).selectOption('ru');
  assert.equal(await page.locator('html').getAttribute('lang'),'ru');
  assert.equal(await page.locator('h1').textContent(),'Граф переводов');
- const response=await page.request.get('http://127.0.0.1:8000/api/exports/nodes_roles.csv');
+ const response=await page.request.get(base+'/api/exports/nodes_roles.csv');
  assert.equal(response.status(),200);
  await page.screenshot({path:'dist/review-desktop.png'});
  await page.setViewportSize({width:390,height:844});

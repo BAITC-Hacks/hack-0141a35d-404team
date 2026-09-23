@@ -13,5 +13,12 @@ def run_pipeline(input_dir: str | Path = "entryset", output_dir: str | Path = "o
     data = load_data(input_dir); graph = build_graph(data["nodes"], data["edges"])
     scored = assign_roles(calculate_metrics(graph, data["transactions"]))
     clusters = summarize_clusters(graph, scored); paths = export_outputs(scored, clusters, output_dir)
-    return {"report": validation_report(data), "graph": graph, "metrics": scored, "clusters": clusters, "paths": paths}
+    report = validation_report(data)
+    seeds = scored[scored["is_seed"]]
+    report.update(n_isolated_seed=int((seeds["counterparty_count"] == 0).sum()),
+                  n_seed_without_outgoing=int((seeds["out_degree"] == 0).sum()),
+                  n_boundary=int(scored["is_depth4_boundary"].sum()),
+                  n_components=len(clusters),
+                  n_connected_components=int((clusters["n_nodes"] > 1).sum()))
+    return {"report": report, "graph": graph, "metrics": scored, "clusters": clusters, "paths": paths}
 

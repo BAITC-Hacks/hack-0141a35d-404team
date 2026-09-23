@@ -1,6 +1,6 @@
 # AML Graph Analysis
 
-Local analysis of a directed transaction graph with a React frontend and a Python FastAPI backend. The original analytical modules and CSV schemas are unchanged by the frontend migration.
+Local analysis of a directed transaction graph with a React frontend and a Python FastAPI backend. The CSV schemas remain fixed; the coverage audit adds conservative handling of seed inflows, isolates, and truncated boundary nodes.
 
 ## Run
 
@@ -17,7 +17,7 @@ The pipeline reads `nodes.parquet`, `edges.parquet`, and `transactions.parquet`,
 
 Open http://127.0.0.1:8000 and click **Run analysis**. After the initial frontend build, `python app.py` serves both the API and React app. Requires Python 3.11+ and Node.js 22+. All runtime assets are local; no CDN, Streamlit, Plotly, or external service is used.
 
-The custom canvas renderer fills the graph workspace. Scroll to zoom, drag to pan, or use Fit view. Search the exact gid or select a priority row to show a neighborhood. Click nodes to select them and hover for concise bottom-right evidence. Filter clusters and switch role/cluster colors. English/Russian text and role descriptions come from a local dictionary; the language choice persists in the browser. Layout coordinates are display-only and never enter analytical calculations.
+The custom canvas renderer fills the graph workspace. Scroll to zoom, drag to pan, or use Fit view. Search the exact gid or select a priority row to show a neighborhood. The seed selector includes every seed, even isolated accounts, and shows incoming/outgoing edge counts. Select 1–4 hops and incoming/outgoing/both tracing. Click nodes to follow connections: the previous node stays visible with a clickable back-arrow badge, and the starting seed remains available as a shortcut. Blue arrows enter the selected account; peach arrows leave it; other edges are muted. Curved links separate reciprocal and collinear routes. Camera and node positions animate, respecting reduced-motion preferences. Filter clusters and switch role/cluster colors. English/Russian text and role descriptions come from a local dictionary. Layout and animation values never enter analytical calculations.
 
 The folder field accepts a folder on the Python server containing all three parquet files, defaulting to `entryset/`. A web run generates its exports in a temporary folder and keeps the download bytes in local server memory until the next successful run or restart. Existing CLI outputs are not overwritten. This is a local, single-analyst application bound to loopback, without authentication or multi-user run isolation.
 
@@ -31,7 +31,7 @@ For frontend development, run `python app.py` in one terminal and `npm run dev` 
 
 ## API and verification
 
-- `POST /api/analyze` with `{"input_dir":"entryset"}` runs the unchanged pipeline and returns report, nodes, edges, clusters, and execution time. IDs are strings in JSON to preserve int64 precision in JavaScript; CSV IDs remain unchanged.
+- `POST /api/analyze` with `{"input_dir":"entryset"}` runs the pipeline and returns report, nodes, edges, clusters, and execution time. Coverage counts include isolated seeds, seeds without outgoing edges, boundary leaves, and component counts. IDs are strings in JSON to preserve int64 precision in JavaScript; CSV IDs remain unchanged.
 - `GET /api/exports/{name}` downloads one of the three fixed CSV filenames from the latest successful web run.
 - `GET /api/health` checks the backend; interactive API docs are at `/api/docs`.
 
@@ -42,19 +42,32 @@ npm test
 npm run build
 # With python app.py running; browser test uses installed Microsoft Edge:
 node tests/browser.mjs
+node tests/seeds.mjs
 ```
 
 The API regression test compares all three CSV downloads byte-for-byte with the direct pipeline and checks exact IDs, invalid inputs, and concurrent-run rejection. The browser test exercises analysis, search, zoom, translation, export, and mobile viewport rendering.
 
-## Task document and preserved baseline
+## Task document and verification
 
-The task document defines required deliverables, role meanings, explainability, and data limitations; it does not prescribe exact scoring formulas. The rules below are the existing implementation's choices, preserved for this migration. Binary rule-match scores are not calibrated probabilities. In particular, the existing coordinator rule selects only maximally connected seeds, terminal rules may classify isolated nodes as terminals, and flow-ratio rules still operate on incomplete observations. This migration does not correct those analytical limitations or claim exact compliance with a document-defined formula.
+The task document defines deliverables, role meanings, explainability, and data limitations; it does not prescribe exact scoring formulas. Rules below are documented implementation choices, not formulas supplied by the document. Binary rule-match scores are not calibrated probabilities. No labelled ground truth exists, so tests establish reproducibility and rule correctness, not predictive accuracy.
+
+Checks on the supplied dataset: 2,248 accounts, 81 seeds, 19 isolated seeds, 31 seeds without outgoing transfers, and 444 depth-4 leaves. There are 16 non-singleton weakly connected components plus 19 isolated accounts: 35 clusters when every account is retained. Counts are computed from the inputs rather than hardcoded. No full balances, below-5,000-KZT activity, external flows, or customer attributes are inferred. Tests verify all-node roles, score bounds, evidence length, cluster coverage, at least 20 ranked nodes, explanatory ranking text, and the five-minute limit. Real browser tests cover search, isolated seed viewing, navigation history, direction colors, translations, and rendering.
 
 ## Role rules
 
-Roles are deterministic structural hypotheses with precedence: coordinator, consolidator, distributor, transit, terminal, peripheral. The implementation uses only direct facts in the supplied graph: seed status, depth, incoming/outgoing edge counts, unique counterparties, and observed sums. A coordinator is the seed account with the highest observed connectivity. A consolidator has at least two senders and more observed incoming than outgoing flow. A distributor has at least three receivers and more observed outgoing than incoming flow. A transit node has incoming and outgoing flow with a pass-through ratio from 0.80 to 1.20. A terminal has no outgoing edge unless it is at the depth-4 boundary. Remaining nodes are peripheral. These rules use no learned values or weighted composite metrics.
+Rules run in this order:
 
-`role_score` is 1 when a required structural rule matches and 0 for peripheral nodes. `priority_score` is the percentile rank of observed total flow, with no invented weights. Evidence is generated for every node and capped at 200 characters. All outputs are review hypotheses, not assertions of wrongdoing.
+1. Depth-4-or-deeper leaves and isolated accounts are peripheral with explicit evidence of missing visibility.
+2. Coordinator: a connected seed with the maximum number of distinct counterparties among seeds (all ties qualify). This remains a limited coordination hypothesis, not an organizer detector.
+3. Consolidator: non-seed with at least two senders and more observed incoming than outgoing flow.
+4. Distributor: at least three receivers; seeds use only this structural condition, while non-seeds additionally require observed outgoing greater than incoming.
+5. Transit: non-seed with positive incoming/outgoing and pass-through ratio 0.80–1.20.
+6. Terminal: non-seed with positive observed incoming and no outgoing edge, after boundary exclusion. This is only an observed terminal hypothesis, not evidence of retained funds.
+7. All remaining nodes are peripheral. Seed pass-through/retention ratios are undefined and are never used for roles. External inflows remain unobserved for other nodes too.
+
+`role_score` is 1 when a named structural rule matches and 0 for peripheral nodes; it is a rule indicator, not measured confidence. Evidence is populated for every node and capped at 200 characters.
+
+`priority_score = rank_min(in_amount + out_amount, ascending=True) / number_of_accounts`, rounded to six decimals. Equal volumes share the minimum rank in the tie group. Example: observed flows [0, 10, 10, 40] produce [0.25, 0.50, 0.50, 1.00]. The score orders review by observed volume; it is not a wrongdoing probability, centrality, or balance. It gives even zero-flow nodes a small nonzero rank and can double-count the same funds as they pass through accounts. Priority weights are not added. The top CSV explains both observed volume and role. UI help is available in English and Russian.
 
 ## Outputs
 

@@ -6,15 +6,27 @@ export const roles = {
  en:{coordinator:'Coordinator',consolidator:'Consolidator',distributor:'Distributor',transit:'Transit',terminal:'Terminal',peripheral:'Peripheral'},
  ru:{coordinator:'Координатор',consolidator:'Консолидатор',distributor:'Распределитель',transit:'Транзит',terminal:'Конечный получатель',peripheral:'Периферия'}
 };
-export const colors = {coordinator:'#ef6464',consolidator:'#f4af53',distributor:'#5cce96',transit:'#69aefa',terminal:'#be9bed',peripheral:'#75869e'};
+export const colors = {coordinator:'#dca1ac',consolidator:'#ddc09a',distributor:'#9ccbb8',transit:'#a3bfdd',terminal:'#bcb0d8',peripheral:'#95a2b5'};
+Object.assign(dictionaries.en,{
+ seedPicker:'Observe seed account',chooseSeed:'Choose a seed account',back:'Previous account',origin:'Starting seed',hops:'Hops',direction:'Trace direction',both:'Both directions',in:'Incoming',out:'Outgoing',
+ priorityHelp:'What does priority mean?',priorityExplanation:'Priority = minimum ascending rank of observed incoming + outgoing KZT, divided by all accounts. Equal volumes share the lowest rank in their tie group. 0.90 means its rank is about 90% of the dataset size. This is a volume review order, not a probability of wrongdoing, centrality, or a bank balance. It ignores flows outside this sample; zero-flow nodes can have a small nonzero score.',
+ limitations:'Data coverage and limitations',limits:'Only observed outgoing expansion, internal-bank transfers ≥5,000 KZT, July 2026, through hop 4. External and below-threshold flows are invisible. Observed amounts are not account balances. Seed inflows are incomplete. No customer attributes or labelled roles are available; scores are heuristic rule matches, not calibrated confidence.',
+ isolatedSeeds:'Isolated seeds',noOutgoingSeeds:'Seeds without outgoing flow',boundaryNodes:'Boundary leaves',components:'Components including isolates',connectedComponents:'Non-singleton components',noEdges:'No connections in the selected view',ruleScore:'Rule match',directionHelp:'Edge colors are relative to the selected account. Arrowheads show sender → receiver.'
+});
+Object.assign(dictionaries.ru,{
+ seedPicker:'Просмотр seed-счёта',chooseSeed:'Выберите seed-счёт',back:'Предыдущий счёт',origin:'Исходный seed',hops:'Колена',direction:'Направление обхода',both:'Оба направления',in:'Входящие',out:'Исходящие',
+ priorityHelp:'Что означает приоритет?',priorityExplanation:'Приоритет = минимальный ранг по возрастанию суммы входящих и исходящих KZT, делённый на число всех счетов. Равные суммы получают минимальный ранг группы. 0,90 означает ранг около 90% размера выборки. Это порядок проверки по объёму, а не вероятность нарушения, центральность или остаток на счёте. Внешние потоки не учтены; у счетов без оборота возможен малый ненулевой скор.',
+ limitations:'Полнота и ограничения данных',limits:'Только исходящий обход, внутрибанковские переводы ≥5 000 KZT, июль 2026, до 4-го колена. Внешние и подпороговые потоки не видны. Наблюдаемые суммы не являются остатками. Входящие seed-счетов неполные. Атрибутов клиентов и размеченных ролей нет; скор — совпадение с правилом, а не калиброванная уверенность.',
+ isolatedSeeds:'Изолированные seed',noOutgoingSeeds:'Seed без исходящих',boundaryNodes:'Листья границы',components:'Компоненты с изолятами',connectedComponents:'Неодиночные компоненты',noEdges:'Нет связей в выбранном представлении',ruleScore:'Совпадение с правилом',directionHelp:'Цвета связей относительно выбранного счёта. Стрелки: отправитель → получатель.'
+});
 export function evidence(n, lang) {
  if(lang==='en') return n.evidence;
  switch(n.role){
  case 'coordinator': return `Seed-счёт с наибольшей наблюдаемой связностью среди seed-счетов: ${n.counterparty_count} контрагентов.`;
  case 'consolidator': return `Получает средства от ${n.n_senders} отправителей; наблюдаемый входящий поток выше исходящего.`;
- case 'distributor': return `Отправляет средства ${n.n_receivers} получателям; наблюдаемый исходящий поток выше входящего.`;
+ case 'distributor': return `Гипотеза распределения: ${n.n_receivers} получателей; исходящий поток ${n.out_amount.toLocaleString('ru-RU')} KZT.`;
  case 'transit': return `Коэффициент пропуска ${n.pass_through_ratio.toFixed(2)}; есть входящие и исходящие связи.`;
  case 'terminal': return `Нет наблюдаемых исходящих связей; получено ${n.in_amount.toLocaleString('ru-RU')} KZT.`;
- default: return n.is_depth4_boundary ? 'Глубина 4 — граница графа; статус конечного получателя неизвестен.' : 'Структурное правило роли не сработало.';
+ default: return n.is_depth4_boundary ? 'Глубина 4 — граница графа; статус конечного получателя неизвестен.' : n.counterparty_count===0 ? 'Нет наблюдаемых связей; счёт сохранён в графе. Нет оснований считать его конечным получателем.' : n.is_seed ? 'Seed-счёт с неполным входящим потоком; выводы по балансу и коэффициенту пропуска не делаются.' : 'Структурное правило роли не сработало.';
  }
 }
