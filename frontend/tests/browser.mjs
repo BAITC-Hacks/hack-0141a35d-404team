@@ -44,6 +44,12 @@ try{
  await page.getByRole('combobox',{name:'Cluster',exact:true}).selectOption(String(data.clusters.at(-1).cluster_id));
  assert.match(await page.locator('.graph-meta').textContent(),/Full network/);
  await page.getByRole('button',{name:'Full network',exact:true}).click();
+ await page.screenshot({path:'dist/communities-overview.png'});
+ const nontrivial=data.clusters.find(c=>c.n_nodes>1&&c.n_nodes<100);
+ assert.ok(nontrivial,'Community between isolates and the giant component');
+ await page.getByRole('combobox',{name:'Cluster',exact:true}).selectOption(String(nontrivial.cluster_id));
+ assert.match(await page.locator('.graph-meta').textContent(),new RegExp(`${nontrivial.n_nodes} accounts`));
+ await page.getByRole('button',{name:'Full network',exact:true}).click();
  await page.getByRole('textbox',{name:'Search exact gid'}).fill('does-not-exist');
  await page.getByRole('button',{name:'Find',exact:true}).click();
  assert.equal(await page.getByRole('alert').textContent(),'Account not found');

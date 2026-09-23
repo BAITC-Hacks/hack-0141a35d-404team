@@ -56,7 +56,7 @@ export default function Graph({graph,selected,previous,onBack,onSelect,onHover,c
   graph.nodes.forEach(n=>{
    const p=point(n.gid);const active=n.gid===selected||n.gid===hit.current;
    const r=Math.max(4,7*k)+(active?3:0);
-   ctx.fillStyle=color==='cluster'?`hsl(${n.component_id*137.5%360} 65% 66%)`:colors[n.role];
+   ctx.fillStyle=color==='cluster'?`hsl(${n.cluster_id*137.5%360} 55% 70%)`:colors[n.role];
    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
    if(active||n.is_seed||n.gid===previous){ctx.strokeStyle=active?'#edf2f7':'#c2cddc';ctx.lineWidth=active?2:1;ctx.stroke();}
    if(active){ctx.fillStyle='#e3ebf7';ctx.font='11px monospace';ctx.textAlign='center';ctx.fillText(n.gid,p.x,p.y-r-8);}

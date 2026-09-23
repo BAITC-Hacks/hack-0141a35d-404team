@@ -1,10 +1,15 @@
 import React,{useState,useMemo,useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import Graph from './Graph.jsx';
+import Chat from './Chat.jsx';
+import NodeCard from './NodeCard.jsx';
+import Resilience from './Resilience.jsx';
 import {visibleGraph} from './graph.js';
-import {dictionaries,roles,colors,evidence} from './i18n';
+import {dictionaries,roles,colors} from './i18n';
+import {featureText} from './features-i18n';
 import './style.css';
 import './refinements.css';
+import './features.css';
 
 function App(){
  const [lang,setLang]=useState(()=>localStorage.getItem('aml-language')==='ru'?'ru':'en');
@@ -39,6 +44,7 @@ function App(){
    {data&&<div className="seed-controls"><label>{t.seedPicker}<select aria-label={t.seedPicker} value={origin||''} onChange={e=>{if(e.target.value)focus(e.target.value);}}><option value="">{t.chooseSeed}</option>{seeds.map(n=><option key={n.gid} value={n.gid}>{n.gid} · ↓{n.in_degree} ↑{n.out_degree}</option>)}</select></label>
    <div className="trace-controls"><label>{t.hops}<select aria-label={t.hops} value={hops} onChange={e=>setHops(Number(e.target.value))}>{[1,2,3,4].map(h=><option key={h}>{h}</option>)}</select></label><label>{t.direction}<select aria-label={t.direction} value={direction} onChange={e=>setDirection(e.target.value)}>{['both','in','out'].map(d=><option key={d} value={d}>{t[d]}</option>)}</select></label></div></div>}
    <details className="help"><summary>{t.priorityHelp}</summary><p>{t.priorityExplanation}</p></details>
+   {data&&<><details className="help"><summary>{featureText[lang].clusterHelp}</summary><p>{featureText[lang].clusterExplanation}</p><p>{featureText[lang].communities}: {data.report.n_clusters} · {t.components}: {data.report.n_components}</p></details><Resilience key={data.dataset_id} data={data} lang={lang} onNavigate={focus}/></>}
    <div className="divider"/><h2>{t.top}</h2>
    <div className="rank-list">{ranked.slice(0,20).map((n,i)=><button key={n.gid} className={'rank '+(selected===n.gid?'active':'')} onClick={()=>focus(n.gid)}><span className="rank-number">{String(i+1).padStart(2,'0')}</span><span><code>{n.gid}</code><small style={{color:colors[n.role]}}>{roles[lang][n.role]}</small></span><span>{n.priority_score.toFixed(4)}</span></button>)}</div>
    {data&&<div className="downloads"><h2>{t.exports}</h2>{['nodes_roles','clusters','top_nodes'].map(name=><a key={name} href={'/api/exports/'+name+'.csv'} download>{name}.csv <span>↓</span></a>)}</div>}
@@ -51,12 +57,13 @@ function App(){
     <button onClick={()=>{setMode('all');setCluster('all');setSelected(null);setHovered(null);setHistory([]);setOrigin(null);}}>{t.overview}</button>
    </div>
    <section className="graph-workspace" aria-label={t.title}>
+    {data&&<Chat key={'chat-'+data.dataset_id} data={data} selected={selected} lang={lang} onNavigate={focus}/>}
     {graph?<Graph graph={graph} selected={selected} previous={previous} onBack={back} neighborhood={mode==='neighborhood'} onSelect={navigate} onHover={setHovered} color={color} t={t}/>:<div className="empty"><span>◈</span><h2>{t.title}</h2><p>{t.empty}</p></div>}
     {origin&&<button className="origin" onClick={()=>focus(origin)}>{t.origin}: {origin}</button>}
     {graph&&graph.edges.length===0&&<p className="no-edges">{t.noEdges}</p>}
     {graph&&<div className="graph-meta">{mode==='all'?t.overview:t.neighborhood} · {graph.nodes.length} {t.nodes.toLowerCase()} · {graph.edges.length} {t.edges.toLowerCase()}</div>}
     <div className="legend">{color==='role'?Object.entries(colors).map(([role,c])=><span key={role}><i style={{background:c}}/>{roles[lang][role]}</span>):<span>{t.cluster}</span>}</div>
-    {data&&<article className="evidence" aria-live="polite"><div className="eyebrow">{t.details}</div>{inspected?<><h3><i style={{background:colors[inspected.role]}}/>{roles[lang][inspected.role]}</h3><code>{inspected.gid}</code><p>{evidence(inspected,lang)}</p><dl><div><dt>{t.priority}</dt><dd>{inspected.priority_score.toFixed(4)}</dd></div><div><dt>{t.depth}</dt><dd>{inspected.depth}</dd></div><div><dt>{t.cluster}</dt><dd>{inspected.component_id}</dd></div></dl><div className="flow">{t.incoming}: {inspected.in_amount.toLocaleString(lang)} KZT<br/>{t.outgoing}: {inspected.out_amount.toLocaleString(lang)} KZT</div>{inspected.is_seed&&<p className="warning">{t.seedWarning}</p>}{inspected.is_depth4_boundary&&<p className="warning">{t.boundaryWarning}</p>}</>:<p>{t.hover}</p>}</article>}
+    {data&&<NodeCard key={data.dataset_id} data={data} node={inspected} selected={selected} lang={lang} onNavigate={focus}/>}
    </section><footer><span>{t.hint}</span><span>{t.review}</span></footer>
    <details className="help coverage"><summary>{t.limitations}</summary><p>{t.limits}</p>{data&&<div className="coverage-counts">{[['isolatedSeeds','n_isolated_seed'],['noOutgoingSeeds','n_seed_without_outgoing'],['boundaryNodes','n_boundary'],['components','n_components'],['connectedComponents','n_connected_components']].map(([label,key])=><span key={key}>{t[label]}: <b>{data.report[key]}</b></span>)}</div>}</details>
   </main></div>

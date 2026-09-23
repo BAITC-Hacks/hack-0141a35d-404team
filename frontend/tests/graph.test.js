@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {visibleGraph,layout,curve,edgeColor,edgeColors} from '../src/graph.js';
 import {dictionaries,roles,evidence} from '../src/i18n.js';
+import {featureText} from '../src/features-i18n.js';
 
 const a='100000000011452101',b='100000000011452102',c='100000000011452103';
-const data={nodes:[{gid:a,depth:0,component_id:1},{gid:b,depth:1,component_id:1},{gid:c,depth:0,component_id:2}],edges:[{src:a,dst:b}]};
+const data={nodes:[{gid:a,depth:0,component_id:1,cluster_id:1},{gid:b,depth:1,component_id:1,cluster_id:1},{gid:c,depth:0,component_id:2,cluster_id:2}],edges:[{src:a,dst:b}]};
 test('exact IDs, direction and isolated nodes survive filtering',()=>{
  assert.equal(visibleGraph(data,null,'all','all').nodes.length,3);
  assert.deepEqual(visibleGraph(data,a,'neighborhood','all').nodes.map(n=>n.gid),[a,b]);
@@ -15,7 +16,15 @@ test('exact IDs, direction and isolated nodes survive filtering',()=>{
 test('local dictionaries cover both languages and all roles',()=>{
  assert.deepEqual(Object.keys(dictionaries.en).sort(),Object.keys(dictionaries.ru).sort());
  assert.deepEqual(Object.keys(roles.en).sort(),Object.keys(roles.ru).sort());
+ assert.deepEqual(Object.keys(featureText.en).sort(),Object.keys(featureText.ru).sort());
  assert.match(evidence({role:'peripheral',is_depth4_boundary:true},'ru'),/граница/);
+});
+test('community filtering is independent of weak component ID',()=>{
+ const split={...data,nodes:data.nodes.map((n,i)=>({...n,component_id:1,cluster_id:i+1}))};
+ assert.deepEqual(visibleGraph(split,null,'all','2').nodes.map(n=>n.gid),[b]);
+ const positions=layout(split.nodes,null,split.edges);
+ assert.equal(positions.size,3);
+ assert.ok([...positions.values()].every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));
 });
 test('directed multi-hop seed tracing and previous-account context',()=>{
  const chain={...data,edges:[{src:a,dst:b},{src:b,dst:c}]};

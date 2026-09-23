@@ -1,7 +1,9 @@
 pandas>=2.1
 pyarrow>=14.0
-networkx>=3.2
+networkx==3.7
 fastapi>=0.115,<1
 uvicorn>=0.30,<1
 httpx>=0.27,<1
+openai>=2,<3
+python-dotenv>=1,<2
 

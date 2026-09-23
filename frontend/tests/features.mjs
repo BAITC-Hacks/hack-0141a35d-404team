@@ -1,0 +1,46 @@
+import {chromium,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+const base=process.env.AML_TEST_URL||'http://127.0.0.1:8000';
+const browser=await chromium.launch({channel:'msedge',headless:true});
+const page=await browser.newPage({viewport:{width:1500,height:1050},reducedMotion:'reduce'});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+try{
+ await page.route('**/api/chat/status',r=>r.fulfill({json:{configured:false,model:'test-model'}}));
+ await page.goto(base);
+ await page.getByRole('button',{name:'Run analysis'}).click();
+ await page.locator('.rank').first().click();
+ const gid=await page.locator('.evidence code').textContent();
+ await expect(page.getByRole('button',{name:'Investigation',exact:true})).toHaveCount(0);
+ await page.locator('.node-patterns summary').click();
+ await expect(page.locator('.node-patterns')).toContainText('48-hour temporal match');
+ await expect(page.locator('.node-card')).toContainText('Suggested data requests');
+ await page.locator('.resilience > summary').click();
+ await page.getByRole('button',{name:'Remove top N (simulation)'}).click();
+ await expect(page.locator('.resilience table')).toContainText('2243');
+ const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Download node card'}).click();
+ assert.equal((await downloading).suggestedFilename(),`node-${gid}.txt`);
+ await page.locator('.node-patterns summary').click();
+ await page.getByRole('button',{name:/Analyst assistant/}).click();
+ await expect(page.locator('.chat')).toContainText('OPENAI_API_KEY');
+ await expect(page.getByRole('button',{name:'Send',exact:true})).toBeDisabled();
+ const chat=await page.locator('.chat').boundingBox(),controls=await page.locator('.map-controls').boundingBox();
+ assert.ok(chat.y+chat.height<=controls.y,'Chat must sit above map controls');
+ await page.getByRole('button',{name:'Expand',exact:true}).click();
+ assert.ok((await page.locator('.chat').boundingBox()).height>chat.height);
+ // UI-only model mock: no request reaches OpenAI and no API key is required.
+ await page.route('**/api/chat/status',r=>r.fulfill({json:{configured:true,model:'test-model'}}));
+ await page.route('**/api/chat',r=>{
+  const body=r.request().postDataJSON();assert.equal(typeof body.message,'string');assert.equal(body.selected_gid,gid);assert.ok(!('api_key' in body));
+  return r.fulfill({json:{answer:`Observed evidence [gid:${gid}]`,gids:[gid],usage:{input_tokens:30,output_tokens:20},queries:[{kind:'node',chars:200}]}});
+ });
+ await page.reload();await page.getByRole('button',{name:'Run analysis'}).click();await page.locator('.rank').first().click();
+ await page.getByRole('button',{name:/Analyst assistant/}).click();
+ await page.locator('.chat textarea').fill('Explain this account');await page.getByRole('button',{name:'Send',exact:true}).click();
+ await expect(page.locator('.message.assistant')).toContainText('Observed evidence');
+ await page.locator('.message.assistant .citation').click();
+ await expect(page.locator('.evidence code')).toHaveText(gid);
+ await page.getByRole('button',{name:'Clear memory'}).click();await expect(page.locator('.message')).toHaveCount(0);
+ await page.getByRole('combobox',{name:'Language'}).selectOption('ru');await expect(page.locator('.chat')).toContainText('AI-ассистент аналитика');
+ await page.screenshot({path:'dist/features-review.png'});
+ assert.deepEqual(errors,[]);console.log('Passed: integrated node card, pattern evidence, removed investigation panel, card download, resilience, key-missing state, expandable chat placement, mocked answer/citations, clear memory, Russian.');
+}finally{await browser.close();}

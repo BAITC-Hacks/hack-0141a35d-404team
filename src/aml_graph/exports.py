@@ -6,7 +6,7 @@ import pandas as pd
 
 def export_outputs(scored: pd.DataFrame, clusters: pd.DataFrame, output_dir: str | Path) -> dict[str, Path]:
     root = Path(output_dir); root.mkdir(parents=True, exist_ok=True)
-    nodes = scored[["gid", "role", "role_score", "component_id", "priority_score", "evidence"]].rename(columns={"component_id": "cluster_id"}).sort_values("gid")
+    nodes = scored[["gid", "role", "role_score", "cluster_id", "priority_score", "evidence"]].sort_values("gid")
     top = scored.sort_values(["priority_score", "role_score", "gid"], ascending=[False, False, True]).head(max(20, min(100, len(scored)))).copy(); top.insert(0, "rank", range(1, len(top) + 1))
     top["why"] = top.apply(lambda r: f"Observed flow {r.total_flow:,.2f} KZT; volume rank score {r.priority_score:.6f}. {r.evidence}", axis=1)
     top = top[["rank", "gid", "role", "priority_score", "why"]]

@@ -1,6 +1,6 @@
 // Layout is visual only: it never contributes to analytical scores.
 export function visibleGraph(data, selected, mode, cluster, previous=null, hops=1, direction='both') {
- let ids = new Set(data.nodes.filter(n=>cluster==='all'||String(n.component_id)===cluster).map(n=>n.gid));
+ let ids = new Set(data.nodes.filter(n=>cluster==='all'||String(n.cluster_id)===cluster).map(n=>n.gid));
  if(mode==='neighborhood' && selected){
   const neighbors=new Set([selected]);
   let frontier=new Set([selected]);
@@ -32,64 +32,47 @@ export function layout(nodes, anchor=null, edges=[]) {
  return denseLayout(nodes, edges);
 }
 function denseLayout(nodes, edges=[]) {
- // Start with a staggered depth layout, then relax it. This preserves flow
- // direction without turning every cluster into a rigid square or circle.
- const sorted=[...nodes].sort((a,b)=>a.depth-b.depth||a.component_id-b.component_id||a.gid.localeCompare(b.gid));
- const depths=[...new Set(sorted.map(n=>n.depth))].sort((a,b)=>a-b);
- const depthIndex=new Map(depths.map((depth,index)=>[depth,index]));
- const components=[...new Set(sorted.map(n=>n.component_id))].sort((a,b)=>a-b);
- const positions=new Map();
- const spacing=72;
- const depthWidth=Math.max(210,Math.min(330,spacing*Math.sqrt(sorted.length)+80));
- const componentGap=Math.max(90,Math.min(240,spacing*1.6));
- const componentCenter=new Map();
- components.forEach((component,index)=>componentCenter.set(component,(index-(components.length-1)/2)*componentGap));
-
- const depthGroups=new Map();
- sorted.forEach(node=>{if(!depthGroups.has(node.depth))depthGroups.set(node.depth,[]);depthGroups.get(node.depth).push(node);});
- sorted.forEach((node,index)=>{
-  const sameDepth=depthGroups.get(node.depth);
-  const rank=sameDepth.indexOf(node);
-  const rowOffset=(rank-(sameDepth.length-1)/2)*spacing;
-  // A small deterministic offset prevents identical depth/component groups
-  // from starting as a perfect grid.
-  const stagger=((index*0.618)%1-.5)*spacing*.45;
-  positions.set(node.gid,{
-   x:depthIndex.get(node.depth)*depthWidth,
-   y:componentCenter.get(node.component_id)+rowOffset+stagger
-  });
+ // Pack community regions so a 2,000-node component cannot become one thin column.
+ // Sunflower positions and all spacing below are rendering-only, never metrics.
+ const groups=new Map();
+ [...nodes].sort((a,b)=>a.cluster_id-b.cluster_id||a.depth-b.depth||a.gid.localeCompare(b.gid)).forEach(node=>{
+  if(!groups.has(node.cluster_id))groups.set(node.cluster_id,[]);
+  groups.get(node.cluster_id).push(node);
  });
-
- const nodeById=new Map(nodes.map(node=>[node.gid,node]));
- const links=edges.filter(edge=>nodeById.has(edge.src)&&nodeById.has(edge.dst));
- const iterations=sorted.length>180?45:70;
- for(let iteration=0;iteration<iterations;iteration++){
-  const forces=new Map(sorted.map(node=>[node.gid,{x:0,y:0}]));
-  const cooling=1-iteration/iterations;
-  for(let i=0;i<sorted.length;i++) for(let j=i+1;j<Math.min(sorted.length,i+80);j++){
-   const a=sorted[i],b=sorted[j],pa=positions.get(a.gid),pb=positions.get(b.gid);
-   const dx=pb.x-pa.x,dy=pb.y-pa.y,dist=Math.max(1,Math.hypot(dx,dy));
-   const force=(dist<150?2600:700)/(dist*dist);
-   const fx=dx/dist*force,fy=dy/dist*force;
-   forces.get(a.gid).x-=fx;forces.get(a.gid).y-=fy;
-   forces.get(b.gid).x+=fx;forces.get(b.gid).y+=fy;
-  }
-  links.forEach(edge=>{
-   const a=positions.get(edge.src),b=positions.get(edge.dst); if(!a||!b)return;
-   const dx=b.x-a.x,dy=b.y-a.y,dist=Math.max(1,Math.hypot(dx,dy));
-   const force=(dist-125)*.008,fx=dx/dist*force,fy=dy/dist*force;
+ const regions=[...groups.entries()].map(([id,members])=>({id,members,radius:Math.max(45,Math.sqrt(members.length)*28+45)}));
+ regions.sort((a,b)=>b.radius-a.radius||a.id-b.id);
+ const shelfWidth=Math.max(400,Math.sqrt(regions.reduce((sum,r)=>sum+(2*r.radius+60)**2,0))*1.25);
+ const positions=new Map(),targets=new Map();
+ let x=0,y=0,rowHeight=0;
+ for(const region of regions){
+  const diameter=region.radius*2+60;
+  if(x+diameter>shelfWidth&&x>0){x=0;y+=rowHeight;rowHeight=0;}
+  const cx=x+region.radius,cy=y+region.radius;
+  region.members.forEach((node,index)=>{
+   const angle=index*Math.PI*(3-Math.sqrt(5)),radius=Math.sqrt(index)*28;
+   const p={x:cx+Math.cos(angle)*radius,y:cy+Math.sin(angle)*radius};
+   positions.set(node.gid,p);targets.set(node.gid,{...p});
+  });
+  x+=diameter;rowHeight=Math.max(rowHeight,diameter);
+ }
+ const ordered=[...nodes].sort((a,b)=>a.gid.localeCompare(b.gid));
+ const links=edges.filter(edge=>positions.has(edge.src)&&positions.has(edge.dst));
+ // Mild spring relaxation keeps groups legible while bringing direct links closer.
+ for(let iteration=0;iteration<25;iteration++){
+  const forces=new Map(ordered.map(n=>[n.gid,{x:0,y:0}]));
+  for(const edge of links){
+   const a=positions.get(edge.src),b=positions.get(edge.dst);
+   const dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy)||1;
+   const force=Math.min(4,(length-80)*.008);
+   const fx=dx/length*force,fy=dy/length*force;
    forces.get(edge.src).x+=fx;forces.get(edge.src).y+=fy;
    forces.get(edge.dst).x-=fx;forces.get(edge.dst).y-=fy;
-  });
-  sorted.forEach(node=>{
-   const p=positions.get(node.gid),f=forces.get(node.gid);
-   const targetX=depthIndex.get(node.depth)*depthWidth;
-   const targetY=componentCenter.get(node.component_id);
-   f.x+=(targetX-p.x)*.045;
-   f.y+=(targetY-p.y)*.002;
-   p.x+=Math.max(-18,Math.min(18,f.x))*cooling;
-   p.y+=Math.max(-18,Math.min(18,f.y))*cooling;
-  });
+  }
+  for(const node of ordered){
+   const p=positions.get(node.gid),f=forces.get(node.gid),target=targets.get(node.gid);
+   p.x+=Math.max(-4,Math.min(4,f.x+(target.x-p.x)*.25));
+   p.y+=Math.max(-4,Math.min(4,f.y+(target.y-p.y)*.25));
+  }
  }
  return positions;
 }

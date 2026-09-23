@@ -6,6 +6,8 @@ Local analysis of a directed transaction graph with a React frontend and a Pytho
 
 ```powershell
 python -m pip install -r requirements.txt
+# First setup only: copy the blank template, then put your key in .env.
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
 cd frontend
 npm ci
 npm run build
@@ -15,7 +17,7 @@ python app.py
 
 The pipeline reads `nodes.parquet`, `edges.parquet`, and `transactions.parquet`, preserving isolated nodes and validating required columns.
 
-Open http://127.0.0.1:8000 and click **Run analysis**. After the initial frontend build, `python app.py` serves both the API and React app. Requires Python 3.11+ and Node.js 22+. All runtime assets are local; no CDN, Streamlit, Plotly, or external service is used.
+Open http://127.0.0.1:8000 and click **Run analysis**. After the initial frontend build, `python app.py` serves both the API and React app. Requires Python 3.12+ (tested on 3.13; NetworkX excludes 3.14.1) and Node.js 22+. All graph assets and analytics are local; no CDN, Streamlit or Plotly is used. Only explicitly submitted AI chat questions use an external service (OpenAI). Skip the copy command if `.env` already exists.
 
 The custom canvas renderer fills the graph workspace. Scroll to zoom, drag to pan, or use Fit view. Search the exact gid or select a priority row to show a neighborhood. The seed selector includes every seed, even isolated accounts, and shows incoming/outgoing edge counts. Select 1–4 hops and incoming/outgoing/both tracing. Click nodes to follow connections: the previous node stays visible with a clickable back-arrow badge, and the starting seed remains available as a shortcut. Blue arrows enter the selected account; peach arrows leave it; other edges are muted. Curved links separate reciprocal and collinear routes. Camera and node positions animate, respecting reduced-motion preferences. Filter clusters and switch role/cluster colors. English/Russian text and role descriptions come from a local dictionary. Layout and animation values never enter analytical calculations.
 
@@ -43,6 +45,7 @@ npm run build
 # With python app.py running; browser test uses installed Microsoft Edge:
 node tests/browser.mjs
 node tests/seeds.mjs
+node tests/features.mjs
 ```
 
 The API regression test compares all three CSV downloads byte-for-byte with the direct pipeline and checks exact IDs, invalid inputs, and concurrent-run rejection. The browser test exercises analysis, search, zoom, translation, export, and mobile viewport rendering.
@@ -51,7 +54,7 @@ The API regression test compares all three CSV downloads byte-for-byte with the 
 
 The task document defines deliverables, role meanings, explainability, and data limitations; it does not prescribe exact scoring formulas. Rules below are documented implementation choices, not formulas supplied by the document. Binary rule-match scores are not calibrated probabilities. No labelled ground truth exists, so tests establish reproducibility and rule correctness, not predictive accuracy.
 
-Checks on the supplied dataset: 2,248 accounts, 81 seeds, 19 isolated seeds, 31 seeds without outgoing transfers, and 444 depth-4 leaves. There are 16 non-singleton weakly connected components plus 19 isolated accounts: 35 clusters when every account is retained. Counts are computed from the inputs rather than hardcoded. No full balances, below-5,000-KZT activity, external flows, or customer attributes are inferred. Tests verify all-node roles, score bounds, evidence length, cluster coverage, at least 20 ranked nodes, explanatory ranking text, and the five-minute limit. Real browser tests cover search, isolated seed viewing, navigation history, direction colors, translations, and rendering.
+Checks on the supplied dataset: 2,248 accounts, 81 seeds, 19 isolated seeds, 31 seeds without outgoing transfers, and 444 depth-4 leaves. There are 16 non-singleton weakly connected components plus 19 isolated accounts: 35 components, not 35 behavioural communities. Community detection yields 105 clusters, with at most 272 accounts in the largest, on this dataset and the tested NetworkX version. Counts are computed, never hardcoded. No full balances, below-5,000-KZT activity, external flows, or customer attributes are inferred. Tests verify all-node roles, score bounds, evidence length, cluster coverage, at least 20 ranked nodes, explanatory ranking text, and the five-minute limit. Real browser tests cover search, isolated seed viewing, navigation history, direction colors, translations, and rendering.
 
 ## Role rules
 
@@ -72,7 +75,7 @@ Rules run in this order:
 ## Outputs
 
 - `nodes_roles.csv`: one row per input node with role, scores, cluster, and evidence.
-- `clusters.csv`: weakly connected component summaries and behavioral hypotheses.
+- `clusters.csv`: amount-weighted Louvain community summaries and behavioral hypotheses.
 - `top_nodes.csv`: ranked review candidates, with at least 20 rows when the input has at least 20 nodes.
 
 ## Limitations and scaling
@@ -80,6 +83,24 @@ Rules run in this order:
 The graph only contains observed in-bank transfers above the supplied threshold and four hops from seeds. Seed incoming flow is incomplete, and depth-4 leaves may be truncated rather than true terminals. No external identity or customer attributes are inferred.
 
 For approximately one million nodes, replace the NetworkX in-memory graph with columnar/streaming graph representation, compute aggregates with pandas/Polars or SQL, use sparse centrality/community algorithms, and render only filtered neighborhoods.
+
+## Clustering
+
+The old baseline grouped weakly connected components, so a single bridging transfer could put thousands of accounts into one cluster. Inspection of the older processing code confirmed a rollback would retain that behaviour. We keep `component_id` and `component_size` for real connectivity, and separately derive `cluster_id` using NetworkX Louvain within each weak component. The undirected projection sums observed KZT amounts in both directions; sorted input insertion, seed 42 and the standard resolution 1 make repeated runs reproducible. These are algorithm settings, not additional risk-score weights. NetworkX is pinned to the tested version 3.7 for replay. Community membership can change when the input changes; a cluster ID is not a permanent identity.
+
+IDs are ordered by descending group size then smallest gid. Disconnected accounts remain singleton groups: merging them would invent relationships. Cluster volume counts only edges with both endpoints inside that community; cross-community edges remain visible in the graph but are not counted as internal. The filter, colours, node card, assistant and exports all use the same `cluster_id`. The compact overview arranges communities separately; its spacing has no effect on analysis.
+
+## Node patterns and AI assistant
+
+The redundant **Investigation** panel has been removed. Click an account: its bottom-corner card automatically shows role, flow, connections and signal badges. Expand **Patterns and evidence** for 48-hour transit, bursts, synchronous inflows, repeated routes, cycles and amount/depth anomalies. **Suggested data requests** explains coverage gaps; **Download node card** saves the brief. Hovering still shows a compact preview without issuing a new request on every mouse move. **Network resilience** in the sidebar simulates removal of the top N accounts and compares connectivity before/after without changing the source graph. The original CSV schemas and role/priority formulas are retained. See [pattern rules](docs/pattern-rules.md) for thresholds, truncation limits and interpretation.
+
+The expandable **Analyst assistant** sits above the map controls. Copy `.env.example` to `.env` once and set `OPENAI_API_KEY` in `.env` (never commit the real key). `OPENAI_MODEL` defaults to `gpt-5.4-nano`. Configuration is reread on each chat request: after editing the key, close and reopen chat; no Python restart is needed. Environment variables override `.env`, which overrides `.env.example`; an explicitly empty environment key disables AI. The example file also works as a fallback for local trials, but keep real credentials in ignored `.env` before sharing or committing. Start `python app.py`, run analysis, then ask “Explain this account”, “Who receives money from these five gids?”, or “Why is this cluster important?”. Click cited gids to navigate the graph.
+
+Questions send bounded excerpts to OpenAI. The API key stays on the server. Chat history stays in local SQLite and is scoped by dataset, with a Clear memory action. The app works without the key; only AI chat is unavailable. See the [local memory design](docs/assistant-memory.md) for context budgets, retrieval, retention, model documentation and failure handling.
+
+Additional endpoints: `GET /api/nodes/{gid}/card?dataset_id=...`, `POST /api/resilience`, `GET /api/chat/status`, `POST /api/chat`, and `GET/DELETE /api/chat/history/{session_id}`. Node-card, resilience and chat requests reject stale dataset IDs.
+
+`python -m unittest discover -s tests -v` covers deterministic signals, window boundaries, resilience immutability, bounded retrieval, local memory and mocked tool calls. Live OpenAI access is not exercised by the automated suite.
 
 ## Work Pipeline
 
