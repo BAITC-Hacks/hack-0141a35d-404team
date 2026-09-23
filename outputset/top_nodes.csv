@@ -1,0 +1,101 @@
+rank,gid,role,priority_score,why
+1,100000000331309100,coordinator,0.6566396669662673,Centrality 0.31; 104 counterparties
+2,100000003684369100,coordinator,0.6253405460611801,Centrality 0.28; 86 counterparties
+3,100000002224132100,distributor,0.5972071784357034,"Distributes to 4 receivers; outgoing flow 12,115,000 KZT"
+4,100000003016635100,coordinator,0.5501819542522178,Centrality 0.48; 81 counterparties
+5,100000008603629100,coordinator,0.5390162874148502,Centrality 0.40; 80 counterparties
+6,100000006866783100,coordinator,0.4858962903886849,Centrality 0.39; 80 counterparties
+7,100000004892144100,consolidator,0.4384490363975485,Receives from 2 senders; retains 96% of observed flow
+8,100000000437046100,coordinator,0.4244035357976512,Centrality 0.17; 51 counterparties
+9,100000004400305100,coordinator,0.41724367366054116,Centrality 0.15; 89 counterparties
+10,100000002578405100,distributor,0.4062663752729052,"Distributes to 116 receivers; outgoing flow 3,108,352 KZT"
+11,100000002527114100,coordinator,0.39475251687882357,Centrality 0.06; 114 counterparties
+12,100000008346837100,distributor,0.3911929031778386,"Distributes to 25 receivers; outgoing flow 1,258,643 KZT"
+13,100000004603109100,consolidator,0.3794567696602821,Receives from 3 senders; retains 85% of observed flow
+14,100000005933757100,distributor,0.3789946520180778,"Distributes to 34 receivers; outgoing flow 3,002,628 KZT"
+15,100000008477350100,coordinator,0.37883132847113155,Centrality 0.21; 50 counterparties
+16,100000008258083100,consolidator,0.354765479068936,Receives from 2 senders; retains 35% of observed flow
+17,100000006274203100,consolidator,0.3390960438500876,Receives from 2 senders; retains 98% of observed flow
+18,100000005910114100,distributor,0.3233870747316469,"Distributes to 19 receivers; outgoing flow 1,469,993 KZT"
+19,100000003115284100,consolidator,0.32184268938142785,Receives from 8 senders; retains 76% of observed flow
+20,100000001732159100,consolidator,0.32088615669386755,Receives from 2 senders; retains 37% of observed flow
+21,100000008686313100,consolidator,0.3169469701319612,Receives from 6 senders; retains 83% of observed flow
+22,100000004221668100,consolidator,0.3157653329419219,Receives from 4 senders; retains 35% of observed flow
+23,100000002957787100,distributor,0.3125362497727136,"Distributes to 34 receivers; outgoing flow 1,276,154 KZT"
+24,100000000706545100,consolidator,0.30790391208261936,Receives from 3 senders; retains 93% of observed flow
+25,100000002605308100,consolidator,0.306635385828967,Receives from 3 senders; retains 100% of observed flow
+26,100000002718366100,consolidator,0.3032405137184054,Receives from 6 senders; retains 100% of observed flow
+27,100000007055802100,consolidator,0.30194682439920156,Receives from 6 senders; retains 70% of observed flow
+28,100000001965374100,distributor,0.3015779143801286,"Distributes to 3 receivers; outgoing flow 3,082,100 KZT"
+29,100000002741024100,consolidator,0.30118004341269056,Receives from 5 senders; retains 47% of observed flow
+30,100000004299488100,consolidator,0.297183858200883,Receives from 6 senders; retains 80% of observed flow
+31,100000001857829100,distributor,0.29645551630979766,"Distributes to 16 receivers; outgoing flow 2,390,993 KZT"
+32,100000007629096100,consolidator,0.2952410564779478,Receives from 4 senders; retains 29% of observed flow
+33,100000005242320100,distributor,0.2951216616153647,"Distributes to 21 receivers; outgoing flow 8,936,295 KZT"
+34,100000003701161100,consolidator,0.2948136900220206,Receives from 4 senders; retains 77% of observed flow
+35,100000004156082100,distributor,0.2938177362831546,"Distributes to 26 receivers; outgoing flow 2,319,556 KZT"
+36,100000008165763100,distributor,0.2920073188679264,"Distributes to 17 receivers; outgoing flow 1,267,858 KZT"
+37,100000001330685100,consolidator,0.2917622442591558,Receives from 3 senders; retains 96% of observed flow
+38,100000000343175100,distributor,0.28989466834702454,"Distributes to 31 receivers; outgoing flow 4,000,039 KZT"
+39,100000008547948100,distributor,0.28542212923274124,"Distributes to 26 receivers; outgoing flow 5,185,600 KZT"
+40,100000008489922100,distributor,0.2845517677972388,"Distributes to 36 receivers; outgoing flow 3,789,900 KZT"
+41,100000004015047100,consolidator,0.2843262705577676,Receives from 9 senders; retains 92% of observed flow
+42,100000005704413100,distributor,0.2809921587071053,"Distributes to 32 receivers; outgoing flow 1,363,593 KZT"
+43,100000002398779100,consolidator,0.2787613900880538,Receives from 13 senders; retains 94% of observed flow
+44,100000004135268100,distributor,0.2745668896962254,"Distributes to 3 receivers; outgoing flow 1,000,200 KZT"
+45,100000001872484100,distributor,0.26793133588790086,"Distributes to 3 receivers; outgoing flow 514,580 KZT"
+46,100000003242289100,distributor,0.26660274605798223,"Distributes to 23 receivers; outgoing flow 2,377,741 KZT"
+47,100000004479404100,consolidator,0.26535992898794947,Receives from 2 senders; retains 80% of observed flow
+48,100000008736940100,consolidator,0.26387210410857675,Receives from 3 senders; retains 60% of observed flow
+49,100000008710791100,distributor,0.26318766315611763,"Distributes to 23 receivers; outgoing flow 5,521,511 KZT"
+50,100000001282143100,consolidator,0.2602498163968837,Receives from 5 senders; retains 100% of observed flow
+51,100000001072022100,consolidator,0.25967735584630186,Receives from 3 senders; retains 100% of observed flow
+52,100000007442518100,distributor,0.2596577188519692,"Distributes to 9 receivers; outgoing flow 4,419,999 KZT"
+53,100000002838861100,consolidator,0.2593291075332229,Receives from 5 senders; retains 98% of observed flow
+54,100000001166289100,consolidator,0.2591610046096138,Receives from 2 senders; retains 97% of observed flow
+55,100000001887715100,consolidator,0.25890044144999264,Receives from 3 senders; retains 44% of observed flow
+56,100000008748914100,distributor,0.25782759428238805,"Distributes to 13 receivers; outgoing flow 4,471,847 KZT"
+57,100000002547110100,consolidator,0.2571234870503282,Receives from 6 senders; retains 100% of observed flow
+58,100000005382566100,consolidator,0.2557520222758657,Receives from 7 senders; retains 87% of observed flow
+59,100000006889963100,consolidator,0.2538280430102097,Receives from 4 senders; retains 69% of observed flow
+60,100000008547844100,distributor,0.2537950183723516,"Distributes to 19 receivers; outgoing flow 2,042,199 KZT"
+61,100000005171642100,transit,0.253746249110536,Pass-through ratio 0.98; 2 in / 1 out counterparties
+62,100000004759121100,consolidator,0.25331881654852,Receives from 6 senders; retains 56% of observed flow
+63,100000004351795100,distributor,0.2521370343697607,"Distributes to 14 receivers; outgoing flow 1,715,161 KZT"
+64,100000001697501100,distributor,0.2511067158659888,"Distributes to 38 receivers; outgoing flow 1,482,606 KZT"
+65,100000008144528100,consolidator,0.25109584118825684,Receives from 5 senders; retains 100% of observed flow
+66,100000005473151100,consolidator,0.25044802528402893,Receives from 3 senders; retains 82% of observed flow
+67,100000003404627100,consolidator,0.2503720267068031,Receives from 4 senders; retains 100% of observed flow
+68,100000008304139100,distributor,0.25022045629421547,"Distributes to 24 receivers; outgoing flow 1,692,997 KZT"
+69,100000004403675100,distributor,0.24977089584256545,"Distributes to 5 receivers; outgoing flow 264,699 KZT"
+70,100000002963189100,distributor,0.24917025499845627,"Distributes to 7 receivers; outgoing flow 5,219,000 KZT"
+71,100000008659445100,distributor,0.24815228603576361,"Distributes to 4 receivers; outgoing flow 875,150 KZT"
+72,100000004070318100,distributor,0.24785206150357442,"Distributes to 19 receivers; outgoing flow 551,860 KZT"
+73,100000002173161100,consolidator,0.24723594531469373,Receives from 3 senders; retains 100% of observed flow
+74,100000001616816100,distributor,0.24722669368377354,"Distributes to 3 receivers; outgoing flow 181,326 KZT"
+75,100000001303311100,consolidator,0.2472065454606656,Receives from 5 senders; retains 100% of observed flow
+76,100000006443391100,consolidator,0.24654883234660588,Receives from 3 senders; retains 31% of observed flow
+77,100000007747786100,distributor,0.24474412338763094,"Distributes to 31 receivers; outgoing flow 4,238,009 KZT"
+78,100000006977207100,distributor,0.2444373684458722,"Distributes to 15 receivers; outgoing flow 4,157,018 KZT"
+79,100000008461532100,distributor,0.24397104089689062,"Distributes to 8 receivers; outgoing flow 2,530,090 KZT"
+80,100000008636603100,distributor,0.2424026961842176,"Distributes to 6 receivers; outgoing flow 159,375 KZT"
+81,100000002781227100,distributor,0.24192949445055303,"Distributes to 3 receivers; outgoing flow 212,420 KZT"
+82,100000007639767100,distributor,0.24079953285661407,"Distributes to 10 receivers; outgoing flow 822,244 KZT"
+83,100000003880331100,distributor,0.23993475389594404,"Distributes to 16 receivers; outgoing flow 3,904,908 KZT"
+84,100000002603769100,consolidator,0.23993370559168814,Receives from 3 senders; retains 100% of observed flow
+85,100000003854444100,distributor,0.23990601237647857,"Distributes to 14 receivers; outgoing flow 2,322,909 KZT"
+86,100000000661912100,transit,0.2395897712402119,Pass-through ratio 1.10; 5 in / 2 out counterparties
+87,100000008637537100,distributor,0.2386294136924258,"Distributes to 3 receivers; outgoing flow 2,351,495 KZT"
+88,100000002267998100,distributor,0.2382682020420559,"Distributes to 3 receivers; outgoing flow 1,115,000 KZT"
+89,100000004962193100,consolidator,0.23745873809403312,Receives from 8 senders; retains 100% of observed flow
+90,100000002870463100,consolidator,0.23731527567320848,Receives from 3 senders; retains 95% of observed flow
+91,100000004692798100,consolidator,0.2366450098542075,Receives from 2 senders; retains 94% of observed flow
+92,100000002692750100,consolidator,0.23616992570045608,Receives from 3 senders; retains 32% of observed flow
+93,100000005074393100,distributor,0.23585928817719246,"Distributes to 6 receivers; outgoing flow 685,500 KZT"
+94,100000001530983100,distributor,0.23523082468669193,"Distributes to 11 receivers; outgoing flow 1,829,538 KZT"
+95,100000000791285100,distributor,0.23520334825710265,"Distributes to 3 receivers; outgoing flow 650,000 KZT"
+96,100000002894076100,consolidator,0.23442378096358676,Receives from 4 senders; retains 100% of observed flow
+97,100000008751429100,consolidator,0.2337987575471668,Receives from 3 senders; retains 81% of observed flow
+98,100000007908818100,consolidator,0.23349635342270778,Receives from 4 senders; retains 58% of observed flow
+99,100000004071080100,consolidator,0.23324423999038146,Receives from 9 senders; retains 81% of observed flow
+100,100000005456919100,consolidator,0.2323430756475188,Receives from 2 senders; retains 99% of observed flow
