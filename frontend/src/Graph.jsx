@@ -6,7 +6,7 @@ export default function Graph({graph,selected,previous,onBack,onSelect,onHover,c
  const canvas=useRef(null), view=useRef({x:0,y:0,k:1}), drag=useRef(null), hit=useRef(null);
  const [size,setSize]=useState({w:800,h:600});
  const [version,setVersion]=useState(0);
- const positions=useMemo(()=>layout(graph.nodes,neighborhood?selected:null),[graph.nodes,neighborhood,selected]);
+ const positions=useMemo(()=>layout(graph.nodes,neighborhood?selected:null,graph.edges),[graph.nodes,graph.edges,neighborhood,selected]);
  const rendered=useRef(new Map()),cameraFrame=useRef(null);
  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
  const update=()=>setVersion(v=>v+1);
