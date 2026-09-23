@@ -12,11 +12,13 @@ streamlit run app.py
 
 The pipeline reads `nodes.parquet`, `edges.parquet`, and `transactions.parquet`, preserving isolated nodes and validating required columns.
 
+The UI uses a lightweight inline SVG renderer rather than Plotly. Select English or Russian in the sidebar, focus a `gid`, and hover a node in the single network view. The bottom-right card shows its role, priority, and concise evidence. Streamlit's visible branding is hidden by the local page stylesheet.
+
 ## Role rules
 
-Roles are deterministic structural hypotheses with precedence: coordinator, consolidator, distributor, transit, terminal, peripheral. Coordinators combine high centrality or seed status with broad connectivity. Consolidators have at least two senders and materially more incoming than outgoing flow. Distributors have at least three receivers and substantial outgoing flow. Transit nodes have incoming and outgoing flow with a pass-through ratio between 0.70 and 1.30. Terminals have no outgoing edge unless they are depth-4 boundary nodes. Boundary leaves are kept conservative because the graph is truncated at depth four.
+Roles are deterministic structural hypotheses with precedence: coordinator, consolidator, distributor, transit, terminal, peripheral. The implementation uses only direct facts in the supplied graph: seed status, depth, incoming/outgoing edge counts, unique counterparties, and observed sums. A coordinator is the seed account with the highest observed connectivity. A consolidator has at least two senders and more observed incoming than outgoing flow. A distributor has at least three receivers and more observed outgoing than incoming flow. A transit node has incoming and outgoing flow with a pass-through ratio from 0.80 to 1.20. A terminal has no outgoing edge unless it is at the depth-4 boundary. Remaining nodes are peripheral. These rules use no learned values or weighted composite metrics.
 
-Scores combine centrality, flow, counterparties, role strength, and incoming volume. Evidence is generated for every node and capped at 200 characters. Priority scores are review signals, not assertions of wrongdoing.
+`role_score` is 1 when a required structural rule matches and 0 for peripheral nodes. `priority_score` is the percentile rank of observed total flow, with no invented weights. Evidence is generated for every node and capped at 200 characters. All outputs are review hypotheses, not assertions of wrongdoing.
 
 ## Outputs
 

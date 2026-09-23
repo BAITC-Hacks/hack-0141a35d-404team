@@ -1,35 +1,51 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 
-def assign_roles(metrics: pd.DataFrame) -> pd.DataFrame:
-    out = metrics.copy(); roles = []; scores = []; evidence = []
-    central_threshold = float(out["centrality_norm"].quantile(0.90))
-    for row in out.itertuples():
-        role, score, reason = "peripheral", 0.15, "Limited observed connectivity; no stronger structural role signal."
-        if (row.is_seed or row.centrality_norm >= central_threshold) and row.counterparty_norm >= 0.35:
-            role = "coordinator"; score = 0.55 * row.centrality_norm + 0.25 * row.counterparty_norm + 0.20 * float(row.is_seed)
-            reason = f"Centrality {row.centrality_norm:.2f}; {row.n_senders + row.n_receivers} counterparties"
-        elif row.n_senders >= 2 and row.in_amount > row.out_amount * 1.25:
-            role = "consolidator"; score = 0.55 * row.in_amount_norm + 0.30 * min(row.n_senders / 10, 1) + 0.15 * row.retention_ratio
-            reason = f"Receives from {row.n_senders} senders; retains {row.retention_ratio:.0%} of observed flow"
-        elif row.n_receivers >= 3 and row.out_amount > row.in_amount * 0.50:
-            role = "distributor"; score = 0.55 * row.out_amount_norm + 0.30 * min(row.n_receivers / 15, 1) + 0.15 * row.counterparty_norm
-            reason = f"Distributes to {row.n_receivers} receivers; outgoing flow {row.out_amount:,.0f} KZT"
-        elif row.in_amount > 0 and row.out_amount > 0 and 0.70 <= row.pass_through_ratio <= 1.30:
-            role = "transit"; score = 0.60 * (1 - min(abs(row.pass_through_ratio - 1.0) / 0.30, 1)) + 0.40 * row.counterparty_norm
-            reason = f"Pass-through ratio {row.pass_through_ratio:.2f}; {row.n_senders} in / {row.n_receivers} out counterparties"
-        elif row.out_degree == 0 and not row.is_depth4_boundary:
-            role = "terminal"; score = 0.55 + 0.45 * row.in_amount_norm
-            reason = f"No observed outgoing edges; receives {row.in_amount:,.0f} KZT"
-        elif row.is_depth4_boundary:
-            reason = "No outgoing edge, but node is at depth 4; terminal status is obscured by graph boundary."
-        roles.append(role); scores.append(float(np.clip(score, 0, 1))); evidence.append(reason[:200])
-    out["role"], out["role_score"], out["evidence"] = roles, scores, evidence
-    role_factor = out["role"].map({"coordinator": 1.0, "consolidator": .9, "distributor": .85, "transit": .75, "terminal": .55, "peripheral": .2})
-    out["priority_score"] = (0.30 * out["centrality_norm"] + 0.20 * out["total_flow_norm"] + 0.15 * out["counterparty_norm"] + 0.20 * role_factor + 0.15 * out["in_amount_norm"]).clip(0, 1)
-    out["priority_score"] *= np.where(out["is_depth4_boundary"], 0.85, 1.0)
-    return out
+def _evidence(row, role: str) -> str:
+    if role == "coordinator":
+        return f"Seed with the highest observed connectivity among seed accounts: {row.counterparty_count} counterparties."
+    if role == "consolidator":
+        return f"Receives from {row.n_senders} senders; observed incoming flow exceeds outgoing flow."
+    if role == "distributor":
+        return f"Sends to {row.n_receivers} receivers; observed outgoing flow exceeds incoming flow."
+    if role == "transit":
+        return f"Observed pass-through ratio is {row.pass_through_ratio:.2f}; has incoming and outgoing flow."
+    if role == "terminal":
+        return f"No observed outgoing edge; receives {row.in_amount:,.0f} KZT."
+    if row.is_depth4_boundary:
+        return "No outgoing edge, but depth 4 is the graph boundary; terminal status is unknown."
+    return "No required role rule matched from the observed graph structure."
 
+
+def assign_roles(metrics: pd.DataFrame) -> pd.DataFrame:
+    """Assign roles using only direct graph facts and documented case rules."""
+    out = metrics.copy()
+    seed_rows = out[out["is_seed"]]
+    max_seed_connectivity = seed_rows["counterparty_count"].max() if not seed_rows.empty else -1
+    roles: list[str] = []
+    scores: list[float] = []
+    evidence: list[str] = []
+    for row in out.itertuples():
+        if row.is_seed and row.counterparty_count == max_seed_connectivity and row.counterparty_count > 0:
+            role = "coordinator"
+        elif row.n_senders >= 2 and row.in_amount > row.out_amount:
+            role = "consolidator"
+        elif row.n_receivers >= 3 and row.out_amount > row.in_amount:
+            role = "distributor"
+        elif row.in_amount > 0 and row.out_amount > 0 and 0.8 <= row.pass_through_ratio <= 1.2:
+            role = "transit"
+        elif row.out_degree == 0 and not row.is_depth4_boundary:
+            role = "terminal"
+        else:
+            role = "peripheral"
+        roles.append(role)
+        scores.append(1.0 if role != "peripheral" else 0.0)
+        evidence.append(_evidence(row, role)[:200])
+
+    out["role"] = roles
+    out["role_score"] = scores
+    out["evidence"] = evidence
+    out["priority_score"] = out["total_flow"].rank(method="min", pct=True).round(6)
+    return out

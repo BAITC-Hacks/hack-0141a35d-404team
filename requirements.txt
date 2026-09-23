@@ -2,6 +2,4 @@ pandas>=2.1
 pyarrow>=14.0
 networkx>=3.2
 streamlit>=1.30
-plotly>=5.18
-streamlit-plotly-events>=0.0.6
 
