@@ -1,107 +1,174 @@
-# AML Graph Analysis
+# AML Graph
 
-Local analysis of a directed transaction graph with a React frontend and a Python FastAPI backend. The CSV schemas remain fixed; the coverage audit adds conservative handling of seed inflows, isolates, and truncated boundary nodes.
+Локальная система анализа графа транзакций для первичного AML-скрининга. Проект помогает аналитику быстро увидеть связи между счетами, выделить структурные роли и приоритетные узлы, исследовать сообщества и получить объяснимые гипотезы для дальнейшей проверки.
 
-## Run
+Система работает с наблюдаемыми внутрибанковскими переводами из Parquet-файлов и не подменяет расследование доказательством нарушения.
+
+## Что реализовано
+
+- построение ориентированного графа счетов и переводов;
+- расчёт метрик входящих и исходящих потоков, степеней, контрагентов, глубины и компонентов связности;
+- назначение структурных ролей: `coordinator`, `consolidator`, `distributor`, `transit`, `terminal`, `peripheral`;
+- объяснение каждой роли текстовым `evidence`;
+- расчёт нормированного `priority_score` по наблюдаемому объёму потоков;
+- воспроизводимое выделение кластеров алгоритмом Louvain;
+- анализ временных и структурных сигналов: транзитное совпадение в окне 48 часов, всплески активности, синхронные входящие операции, повторяющиеся маршруты и суммы, циклы длины 2–3, выбросы по глубине;
+- интерактивный граф на React и Canvas: поиск, масштабирование, панорамирование, фильтры кластеров, просмотр соседей, история навигации и карточка узла;
+- симуляция устойчивости топологии при удалении топ-N узлов;
+- экспорт `nodes_roles.csv`, `clusters.csv` и `top_nodes.csv`;
+- локальный русско-английский интерфейс;
+- опциональный AI-ассистент для вопросов по результатам анализа. Ассистент получает ограниченные извлечённые фрагменты данных, цитирует `gid` и хранит историю локально в SQLite.
+
+## Как работает решение
+
+1. Пользователь помещает `nodes.parquet`, `edges.parquet` и `transactions.parquet` в одну папку.
+2. Pipeline проверяет обязательные поля, приводит типы и исключает связи с неизвестными узлами и петли.
+3. Из узлов и агрегированных рёбер строится ориентированный граф NetworkX.
+4. Для каждого узла рассчитываются потоки и структурные показатели, затем применяются правила ролей и приоритизации.
+5. Внутри компонентов связности строятся взвешенные сообщества Louvain, после чего формируются CSV-выгрузки и сигналы по сырым транзакциям.
+6. В веб-интерфейсе аналитик запускает анализ, изучает обзор графа или конкретный узел, фильтрует сообщества и скачивает результаты. При наличии API-ключа можно задать вопрос AI-ассистенту.
+
+## Технологии
+
+- Python 3.12+;
+- FastAPI и Uvicorn — локальный API и раздача собранного интерфейса;
+- pandas и PyArrow — обработка таблиц и Parquet;
+- NetworkX 3.7 — ориентированный граф, компоненты связности и Louvain;
+- React 19, Vite 6 и JavaScript — интерфейс;
+- Canvas и Web Worker — визуализация и расчёт layout графа;
+- OpenAI Python SDK и Responses API, модель по умолчанию `gpt-5.4-nano` — только для опционального ассистента;
+- SQLite — локальная память диалогов;
+- `python-dotenv` — чтение `.env`.
+
+## Архитектура проекта
+
+```text
+Parquet-вход
+    │
+    ▼
+src/aml_graph/io.py ──> graph.py ──> analysis.py ──> roles.py
+                                      │                 │
+                                      ├──> clustering.py ──> exports.py
+                                      └──> patterns.py
+                                                            │
+                         run_pipeline.py (CLI)              │
+                                │                            │
+                                └────────────── app.py (FastAPI)
+                                                             │
+                              frontend/src (React + Canvas) ◄─┘
+                                                             │
+                         OpenAI API (только чат, опционально)
+```
+
+- `run_pipeline.py` запускает пакетный анализ и сохраняет CSV в указанную папку.
+- `app.py` предоставляет `/api/analyze`, экспорт, карточки узлов, resilience и chat API, а также отдаёт `frontend/dist`.
+- `src/aml_graph/` содержит загрузку, анализ, роли, кластеры, сигналы, экспорт и AI retrieval.
+- `frontend/` содержит интерфейс и тесты браузерного сценария.
+- `entryset/` содержит пример входного набора, `outputset/` — результаты пакетного запуска.
+
+## Установка и запуск
+
+Требуются Python 3.12+ и Node.js 22+.
 
 ```powershell
 python -m pip install -r requirements.txt
-# First setup only: copy the blank template, then put your key in .env.
+
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
+
 cd frontend
 npm ci
 npm run build
 cd ..
+
 python app.py
 ```
 
-The pipeline reads `nodes.parquet`, `edges.parquet`, and `transactions.parquet`, preserving isolated nodes and validating required columns.
+Откройте <http://127.0.0.1:8000> и нажмите **Run analysis**. По умолчанию веб-приложение читает `entryset/`. В поле папки можно указать другой каталог на Python-сервере, если в нём есть все три Parquet-файла.
 
-Open http://127.0.0.1:8000 and click **Run analysis**. After the initial frontend build, `python app.py` serves both the API and React app. Requires Python 3.12+ (tested on 3.13; NetworkX excludes 3.14.1) and Node.js 22+. All graph assets and analytics are local; no CDN, Streamlit or Plotly is used. Only explicitly submitted AI chat questions use an external service (OpenAI). Skip the copy command if `.env` already exists.
-
-The custom canvas renderer fills the graph workspace. Scroll to zoom, drag to pan, or use Fit view. Search the exact gid or select a priority row to show a neighborhood. The seed selector includes every seed, even isolated accounts, and shows incoming/outgoing edge counts. Select 1–4 hops and incoming/outgoing/both tracing. Click nodes to follow connections: the previous node stays visible with a clickable back-arrow badge, and the starting seed remains available as a shortcut. Blue arrows enter the selected account; peach arrows leave it; other edges are muted. Curved links separate reciprocal and collinear routes. Camera and node positions animate, respecting reduced-motion preferences. Filter clusters and switch role/cluster colors. English/Russian text and role descriptions come from a local dictionary. Layout and animation values never enter analytical calculations.
-
-The folder field accepts a folder on the Python server containing all three parquet files, defaulting to `entryset/`. A web run generates its exports in a temporary folder and keeps the download bytes in local server memory until the next successful run or restart. Existing CLI outputs are not overwritten. This is a local, single-analyst application bound to loopback, without authentication or multi-user run isolation.
-
-The original batch command still writes all three outputs:
+Для пакетного режима без веб-интерфейса:
 
 ```powershell
 python run_pipeline.py --input entryset --output outputset
 ```
 
-For frontend development, run `python app.py` in one terminal and `npm run dev` from `frontend/` in another. Vite proxies `/api` to port 8000.
+Для разработки интерфейса запустите `python app.py` в одном терминале и `npm run dev` из `frontend/` в другом. Vite проксирует `/api` на `127.0.0.1:8000`.
 
-## API and verification
+AI-ассистент не обязателен для основного анализа. Чтобы включить его, укажите ключ в локальном `.env`:
 
-- `POST /api/analyze` with `{"input_dir":"entryset"}` runs the pipeline and returns report, nodes, edges, clusters, and execution time. Coverage counts include isolated seeds, seeds without outgoing edges, boundary leaves, and component counts. IDs are strings in JSON to preserve int64 precision in JavaScript; CSV IDs remain unchanged.
-- `GET /api/exports/{name}` downloads one of the three fixed CSV filenames from the latest successful web run.
-- `GET /api/health` checks the backend; interactive API docs are at `/api/docs`.
+```dotenv
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-5.4-nano
+```
+
+Файл `.env` игнорируется Git и не должен содержать ключ в коммите. Без ключа анализ графа и остальные функции продолжают работать, но чат недоступен.
+
+## Как проверить решение
+
+Повторяемый сценарий для жюри:
+
+1. Выполнить установку и сборку выше.
+2. Запустить `python app.py`.
+3. Открыть <http://127.0.0.1:8000>, оставить `entryset` и нажать **Run analysis**.
+4. Найти `gid` через поиск или выбрать строку рейтинга.
+5. Открыть карточку узла, посмотреть роль, доказательство, потоки, сигналы и предложенные запросы данных.
+6. Переключить кластерный фильтр, изменить направление обхода и масштаб графа.
+7. Скачать три CSV через интерфейс.
+
+Проверка API:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/health
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/analyze -ContentType 'application/json' -Body '{}'
+```
+
+Документация API доступна по <http://127.0.0.1:8000/api/docs>.
+
+Автоматические проверки:
 
 ```powershell
 python -m unittest discover -s tests -v
 cd frontend
 npm test
 npm run build
-# With python app.py running; browser test uses installed Microsoft Edge:
+```
+
+Браузерные smoke-тесты требуют запущенного сервера и установленного Microsoft Edge:
+
+```powershell
 node tests/browser.mjs
 node tests/seeds.mjs
 node tests/features.mjs
+node tests/clusters.mjs
 ```
 
-The API regression test compares all three CSV downloads byte-for-byte with the direct pipeline and checks exact IDs, invalid inputs, and concurrent-run rejection. The browser test exercises analysis, search, zoom, translation, export, and mobile viewport rendering.
+## Данные и интеграции
 
-## Task document and verification
+Входная папка должна содержать:
 
-The task document defines deliverables, role meanings, explainability, and data limitations; it does not prescribe exact scoring formulas. Rules below are documented implementation choices, not formulas supplied by the document. Binary rule-match scores are not calibrated probabilities. No labelled ground truth exists, so tests establish reproducibility and rule correctness, not predictive accuracy.
+- `nodes.parquet`: `gid`, `depth`, `is_seed`;
+- `edges.parquet`: `src`, `dst`, `sum_kzt`, `n_tx`, `depth`;
+- `transactions.parquet`: `src`, `dst`, `date`, `sum_kzt`.
 
-Checks on the supplied dataset: 2,248 accounts, 81 seeds, 19 isolated seeds, 31 seeds without outgoing transfers, and 444 depth-4 leaves. There are 16 non-singleton weakly connected components plus 19 isolated accounts: 35 components, not 35 behavioural communities. Community detection yields 105 clusters, with at most 272 accounts in the largest, on this dataset and the tested NetworkX version. Counts are computed, never hardcoded. No full balances, below-5,000-KZT activity, external flows, or customer attributes are inferred. Tests verify all-node roles, score bounds, evidence length, cluster coverage, at least 20 ranked nodes, explanatory ranking text, and the five-minute limit. Real browser tests cover search, isolated seed viewing, navigation history, direction colors, translations, and rendering.
+В репозитории есть пример `entryset/`. В текущем наборе pipeline проверяет 2 248 узлов, 81 seed и 444 узла на границе глубины 4; эти значения пересчитываются при запуске и не зашиты в код.
 
-## Role rules
+Внешняя интеграция только одна: при включённом AI-ассистенте сервер отправляет в OpenAI ограниченные контексты и результаты локального retrieval. API-ключ остаётся на сервере. Проверка соединения (`/api/chat/check`) выполняет отдельный небольшой запрос без данных графа. Основной анализ, визуализация и экспорты выполняются локально.
 
-Rules run in this order:
+## Ограничения
 
-1. Depth-4-or-deeper leaves and isolated accounts are peripheral with explicit evidence of missing visibility.
-2. Coordinator: a connected seed with the maximum number of distinct counterparties among seeds (all ties qualify). This remains a limited coordination hypothesis, not an organizer detector.
-3. Consolidator: non-seed with at least two senders and more observed incoming than outgoing flow.
-4. Distributor: at least three receivers; seeds use only this structural condition, while non-seeds additionally require observed outgoing greater than incoming.
-5. Transit: non-seed with positive incoming/outgoing and pass-through ratio 0.80–1.20.
-6. Terminal: non-seed with positive observed incoming and no outgoing edge, after boundary exclusion. This is only an observed terminal hypothesis, not evidence of retained funds.
-7. All remaining nodes are peripheral. Seed pass-through/retention ratios are undefined and are never used for roles. External inflows remain unobserved for other nodes too.
+- Анализ использует только наблюдаемые внутрибанковские переводы из входного набора; внешние поступления, операции ниже порога 5 000 KZT, балансы, клиентские атрибуты и назначение платежа отсутствуют.
+- Входящие потоки seed-узлов неполны, а узлы глубины 4 без исходящих рёбер могут быть обрезанной границей графа, а не настоящими терминальными узлами.
+- Роли и `priority_score` — объяснимые правила и сортировка наблюдаемого объёма, а не вероятность нарушения, баланс или доказательство вины.
+- Сигналы временной совместимости не доказывают, что перемещались те же деньги; resilience описывает только статическую топологию.
+- Приложение рассчитано на одного локального аналитика, слушает loopback, не имеет аутентификации и многопользовательской изоляции запусков.
+- Результаты и память чата локальны; AI-чат зависит от наличия ключа, доступа к выбранной модели, квоты и сети.
+- Граф и расчёты выполняются в памяти; полноценное масштабирование до очень больших графов в текущей версии не реализовано.
 
-`role_score` is 1 when a named structural rule matches and 0 for peripheral nodes; it is a rule indicator, not measured confidence. Evidence is populated for every node and capped at 200 characters.
+## Deployed-версия
 
-`priority_score = rank_min(in_amount + out_amount, ascending=True) / number_of_accounts`, rounded to six decimals. Equal volumes share the minimum rank in the tie group. Example: observed flows [0, 10, 10, 40] produce [0.25, 0.50, 0.50, 1.00]. The score orders review by observed volume; it is not a wrongdoing probability, centrality, or balance. It gives even zero-flow nodes a small nonzero rank and can double-count the same funds as they pass through accounts. Priority weights are not added. The top CSV explains both observed volume and role. UI help is available in English and Russian.
+В текущем репозитории подтверждённой ссылки на deployed-версию нет. Приложение запускается локально по адресу <http://127.0.0.1:8000>.
 
-## Outputs
+## Выходные файлы
 
-- `nodes_roles.csv`: one row per input node with role, scores, cluster, and evidence.
-- `clusters.csv`: amount-weighted Louvain community summaries and behavioral hypotheses.
-- `top_nodes.csv`: ranked review candidates, with at least 20 rows when the input has at least 20 nodes.
-
-## Limitations and scaling
-
-The graph only contains observed in-bank transfers above the supplied threshold and four hops from seeds. Seed incoming flow is incomplete, and depth-4 leaves may be truncated rather than true terminals. No external identity or customer attributes are inferred.
-
-For approximately one million nodes, replace the NetworkX in-memory graph with columnar/streaming graph representation, compute aggregates with pandas/Polars or SQL, use sparse centrality/community algorithms, and render only filtered neighborhoods.
-
-## Clustering
-
-The old baseline grouped weakly connected components, so a single bridging transfer could put thousands of accounts into one cluster. Inspection of the older processing code confirmed a rollback would retain that behaviour. We keep `component_id` and `component_size` for real connectivity, and separately derive `cluster_id` using NetworkX Louvain within each weak component. The undirected projection sums observed KZT amounts in both directions; sorted input insertion, seed 42 and the standard resolution 1 make repeated runs reproducible. These are algorithm settings, not additional risk-score weights. NetworkX is pinned to the tested version 3.7 for replay. Community membership can change when the input changes; a cluster ID is not a permanent identity.
-
-IDs are ordered by descending group size then smallest gid. Disconnected accounts remain singleton groups: merging them would invent relationships. Cluster volume counts only edges with both endpoints inside that community; cross-community edges remain visible in the graph but are not counted as internal. The filter, colours, node card, assistant and exports all use the same `cluster_id`. The compact overview arranges communities separately; its spacing has no effect on analysis.
-
-## Node patterns and AI assistant
-
-The redundant **Investigation** panel has been removed. Click an account: its bottom-corner card automatically shows role, flow, connections and signal badges. Expand **Patterns and evidence** for 48-hour transit, bursts, synchronous inflows, repeated routes, cycles and amount/depth anomalies. **Suggested data requests** explains coverage gaps; **Download node card** saves the brief. Hovering still shows a compact preview without issuing a new request on every mouse move. **Network resilience** in the sidebar simulates removal of the top N accounts and compares connectivity before/after without changing the source graph. The original CSV schemas and role/priority formulas are retained. See [pattern rules](docs/pattern-rules.md) for thresholds, truncation limits and interpretation.
-
-The expandable **Analyst assistant** sits above the map controls. Copy `.env.example` to `.env` once and set `OPENAI_API_KEY` in `.env` (never commit the real key). `OPENAI_MODEL` defaults to `gpt-5.4-nano`. Configuration is reread on each chat request: after editing the key, close and reopen chat; no Python restart is needed. Environment variables override `.env`, which overrides `.env.example`; an explicitly empty environment key disables AI. The example file also works as a fallback for local trials, but keep real credentials in ignored `.env` before sharing or committing. Start `python app.py`, run analysis, then ask “Explain this account”, “Who receives money from these five gids?”, or “Why is this cluster important?”. Click cited gids to navigate the graph.
-
-Questions send bounded excerpts to OpenAI. The API key stays on the server. Chat history stays in local SQLite and is scoped by dataset, with a Clear memory action. The app works without the key; only AI chat is unavailable. See the [local memory design](docs/assistant-memory.md) for context budgets, retrieval, retention, model documentation and failure handling.
-
-Additional endpoints: `GET /api/nodes/{gid}/card?dataset_id=...`, `POST /api/resilience`, `GET /api/chat/status`, `POST /api/chat`, and `GET/DELETE /api/chat/history/{session_id}`. Node-card, resilience and chat requests reject stale dataset IDs.
-
-`python -m unittest discover -s tests -v` covers deterministic signals, window boundaries, resilience immutability, bounded retrieval, local memory and mocked tool calls. Live OpenAI access is not exercised by the automated suite.
-
-## Work Pipeline
-
-Development follows planning and design, isolated-branch development, testing and review, integration into `main`, and deployment. Feature branches should be submitted for review before integration.
+- `nodes_roles.csv` — строка на каждый узел: роль, scores, кластер и объяснение;
+- `clusters.csv` — размер, seed-узлы, внутренний объём, top-узлы и гипотеза кластера;
+- `top_nodes.csv` — ранжированные кандидаты для первичного просмотра и причина попадания в список.
