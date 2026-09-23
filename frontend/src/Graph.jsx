@@ -6,7 +6,7 @@ export default function Graph({graph,selected,onSelect,onHover,color,t}) {
  const canvas=useRef(null), view=useRef({x:0,y:0,k:1}), drag=useRef(null), hit=useRef(null);
  const [size,setSize]=useState({w:800,h:600});
  const [version,setVersion]=useState(0);
- const positions=useMemo(()=>layout(graph.nodes),[graph.nodes]);
+ const positions=useMemo(()=>layout(graph.nodes,graph.edges),[graph.nodes,graph.edges]);
  const update=()=>setVersion(v=>v+1);
  const fit=()=>{
   const ps=[...positions.values()]; if(!ps.length)return;
