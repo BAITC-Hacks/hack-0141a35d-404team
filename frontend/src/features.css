@@ -11,3 +11,4 @@
 .resilience{flex-shrink:0}.resilience table{width:100%;font-size:10px;border-collapse:collapse;text-align:left}.resilience td,.resilience th{padding:5px 2px;border-bottom:1px solid #48586c}.resilience .citation{display:block}
 @media(max-width:1050px){.chat.open:not(.expanded){width: min(390px,calc(100% - 32px))}.chat.open~.node-card{opacity:0;pointer-events:none}}
 @media(max-width:720px){.chat{bottom:105px}.chat.open{height:330px}.chat.expanded{height:calc(100% - 135px)}.node-card{width:255px;max-height:calc(100% - 205px)}.resilience{max-width:400px}}
+.chat-connection{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:3px 12px;font-size:10px;color:#c0d2e1}.chat-connection button{padding:4px 7px;font-size:10px}

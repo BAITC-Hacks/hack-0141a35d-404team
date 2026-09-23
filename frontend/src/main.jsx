@@ -33,7 +33,7 @@ function App(){
   }catch(e){setError(e instanceof TypeError?t.networkError:e.message);}finally{setBusy(false);}
  }
  function focus(id){setSelected(id);setQuery(id);setCluster('all');setMode('neighborhood');setHovered(null);setError('');setHistory([]);setOrigin(data.nodes.find(n=>n.gid===id)?.is_seed?id:null);}
- function navigate(id){if(id===selected)return;setHistory(h=>selected?[...h,selected]:h);setSelected(id);setQuery(id);setHovered(null);}
+ function navigate(id){if(id===selected)return;setHistory(h=>selected?[...h,selected]:h);setSelected(id);setQuery(id);setHovered(null);setMode('neighborhood');setCluster('all');}
  function back(){if(!previous)return;setSelected(previous);setQuery(previous);setHistory(h=>h.slice(0,-1));setHovered(null);}
  function search(e){e.preventDefault();if(data?.nodes.some(n=>n.gid===query.trim()))focus(query.trim());else setError(t.missing);}
  return <div className="app">
@@ -52,7 +52,10 @@ function App(){
    <div className="title-row"><div><span className="eyebrow">AML / GRAPH EXPLORER</span><h1>{t.title}</h1></div>{data&&<div className="stats"><span><b>{data.report.n_nodes.toLocaleString()}</b>{t.nodes}</span><span><b>{data.report.n_edges.toLocaleString()}</b>{t.edges}</span><span><b>{data.report.n_seed}</b>{t.seeds}</span><span><b>{data.elapsed_seconds}{t.seconds}</b>{t.time}</span></div>}</div>
    {error&&<div className="error" role="alert">{error}</div>}
    <div className="toolbar"><form onSubmit={search}><input aria-label={t.search} placeholder={t.search} value={query} onChange={e=>setQuery(e.target.value)} inputMode="numeric"/><button disabled={!data}>{t.find}</button></form>
-    <select aria-label={t.cluster} value={cluster} onChange={e=>{setCluster(e.target.value);setMode('all');setHovered(null);setSelected(null);setHistory([]);setOrigin(null);}}><option value="all">{t.all}</option>{data?.clusters.map(c=><option key={c.cluster_id} value={c.cluster_id}>{t.cluster} {c.cluster_id} · {c.n_nodes}</option>)}</select>
+    <select aria-label={t.cluster} value={cluster} onChange={e=>{setCluster(e.target.value);setMode('all');setHovered(null);setSelected(null);setQuery('');setHistory([]);setOrigin(null);}}><option value="all">{t.all}</option>
+     <optgroup label={featureText[lang].communities}>{data?.clusters.filter(c=>c.n_nodes>1).map(c=><option key={c.cluster_id} value={c.cluster_id}>{t.cluster} {c.cluster_id} · {c.n_nodes} {t.nodes.toLowerCase()}</option>)}</optgroup>
+     <optgroup label={featureText[lang].singletons}>{data?.clusters.filter(c=>c.n_nodes===1).map(c=><option key={c.cluster_id} value={c.cluster_id}>{t.cluster} {c.cluster_id} · {c.top_gids}</option>)}</optgroup>
+    </select>
     <select aria-label={t.color} value={color} onChange={e=>setColor(e.target.value)}><option value="role">{t.role}</option><option value="cluster">{t.cluster}</option></select>
     <button onClick={()=>{setMode('all');setCluster('all');setSelected(null);setHovered(null);setHistory([]);setOrigin(null);}}>{t.overview}</button>
    </div>

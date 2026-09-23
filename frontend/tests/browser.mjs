@@ -1,7 +1,7 @@
 // Start python app.py and build the frontend before this local browser smoke test.
 import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
-import {visibleGraph,layout} from '../src/graph.js';
+import {nodePoints,settled} from './graph-helpers.mjs';
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
 const base=process.env.AML_TEST_URL||'http://127.0.0.1:8000';
@@ -20,12 +20,7 @@ try{
  assert.match(await page.locator('.graph-meta').textContent(),/Selected neighborhood/);
  await page.getByRole('button',{name:'Zoom in'}).click();
  await page.getByRole('button',{name:'Fit view'}).click();
- const canvas=await page.locator('canvas').boundingBox();
- const graph=visibleGraph(data,gid,'neighborhood','all'),positions=layout(graph.nodes,gid);
- const xs=[...positions.values()].map(p=>p.x),ys=[...positions.values()].map(p=>p.y);
- const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;
- const k=Math.min(2.5,(canvas.width-70)/(maxX-minX),(canvas.height-100)/(maxY-minY));
- const points=graph.nodes.map(n=>({n,x:canvas.width/2+(positions.get(n.gid).x-(minX+maxX)/2)*k,y:canvas.height/2+(positions.get(n.gid).y-(minY+maxY)/2)*k}));
+ const {box:canvas,points}=await nodePoints(page,data,gid);
  const target=points.find(p=>p.n.gid!==gid&&p.x>20&&p.x<canvas.width-320&&p.y>90&&p.y<canvas.height-70);
  assert.ok(target,'Visible hover target');
  await page.mouse.move(canvas.x+target.x,canvas.y+target.y);
@@ -44,9 +39,10 @@ try{
  await page.getByRole('combobox',{name:'Cluster',exact:true}).selectOption(String(data.clusters.at(-1).cluster_id));
  assert.match(await page.locator('.graph-meta').textContent(),/Full network/);
  await page.getByRole('button',{name:'Full network',exact:true}).click();
+ await settled(page);
  await page.screenshot({path:'dist/communities-overview.png'});
  const nontrivial=data.clusters.find(c=>c.n_nodes>1&&c.n_nodes<100);
- assert.ok(nontrivial,'Community between isolates and the giant component');
+ assert.ok(nontrivial,'Nontrivial connected component');
  await page.getByRole('combobox',{name:'Cluster',exact:true}).selectOption(String(nontrivial.cluster_id));
  assert.match(await page.locator('.graph-meta').textContent(),new RegExp(`${nontrivial.n_nodes} accounts`));
  await page.getByRole('button',{name:'Full network',exact:true}).click();

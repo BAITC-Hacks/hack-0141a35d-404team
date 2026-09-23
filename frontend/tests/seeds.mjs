@@ -1,6 +1,6 @@
 import {chromium,expect} from '@playwright/test';
 import assert from 'node:assert/strict';
-import {visibleGraph,layout} from '../src/graph.js';
+import {nodePoints,settled} from './graph-helpers.mjs';
 const base=process.env.AML_TEST_URL||'http://127.0.0.1:8000';
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const page=await browser.newPage({viewport:{width:1500,height:1050}});
@@ -22,12 +22,8 @@ try{
  assert.ok(seed);
  await picker.selectOption(seed.gid);
  await page.waitForTimeout(600); // Verify settled animated layout, not reduced-motion mode.
- const box=await page.locator('canvas').boundingBox();
- const graph=visibleGraph(data,seed.gid,'neighborhood','all'),positions=layout(graph.nodes,seed.gid);
- const ps=[...positions.values()],xs=ps.map(p=>p.x),ys=ps.map(p=>p.y);
- const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;
- const k=Math.min(2.5,(box.width-70)/(maxX-minX),(box.height-100)/(maxY-minY));
- const target=graph.nodes.map(n=>({n,x:box.width/2+(positions.get(n.gid).x-(minX+maxX)/2)*k,y:box.height/2+(positions.get(n.gid).y-(minY+maxY)/2)*k})).find(p=>p.n.gid!==seed.gid&&p.x>80&&p.x<box.width-320&&p.y>160&&p.y<box.height-100);
+ const {box,points}=await nodePoints(page,data,seed.gid);
+ const target=points.find(p=>p.n.gid!==seed.gid&&p.x>80&&p.x<box.width-320&&p.y>160&&p.y<box.height-100);
  assert.ok(target);
  await page.mouse.click(box.x+target.x,box.y+target.y);
  await expect(page.locator('.previous-marker')).toBeVisible();
@@ -39,13 +35,13 @@ try{
  await page.screenshot({path:'dist/seed-navigation.png'});
  await page.locator('.previous-marker').click();
  await expect(page.locator('.evidence code')).toHaveText(seed.gid);
- await expect(page.locator('.previous-marker')).toHaveCount(0);
+ await expect(page.locator('.previous-marker')).toBeHidden();
  await page.getByLabel('Hops',{exact:true}).selectOption('4');
  await page.getByLabel('Trace direction',{exact:true}).selectOption('out');
  await page.getByText('What does priority mean?',{exact:true}).click();
  await expect(page.locator('.help').first()).toContainText('not a probability');
  await page.getByText('Data coverage and limitations',{exact:true}).click();
- await expect(page.locator('.coverage')).toContainText('Isolated seeds: 19');
+ await expect(page.locator('.coverage')).toContainText('Isolated seeds: '+seeds.filter(n=>n.counterparty_count===0).length);
  await page.getByRole('combobox',{name:'Language'}).selectOption('ru');
  await expect(page.getByRole('combobox',{name:'Просмотр seed-счёта'})).toHaveValue(seed.gid);
  assert.deepEqual(errors,[]);

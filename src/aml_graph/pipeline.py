@@ -22,7 +22,8 @@ def run_pipeline(input_dir: str | Path = "entryset", output_dir: str | Path = "o
                   n_boundary=int(scored["is_depth4_boundary"].sum()),
                   n_components=int(scored['component_id'].nunique()),
                   n_connected_components=int(scored.loc[scored['component_size'] > 1, 'component_id'].nunique()),
-                  n_clusters=len(clusters), clustering_method='amount-weighted Louvain (seed=42, resolution=1)')
+                  n_clusters=len(clusters), clustering_method='amount-weighted Louvain within components',
+                  n_singleton_clusters=int((clusters.n_nodes == 1).sum()))
     return {"report": report, "graph": graph, "metrics": scored, "clusters": clusters, "paths": paths,
             "insights": analyze_patterns(graph, data["transactions"], scored)}
 

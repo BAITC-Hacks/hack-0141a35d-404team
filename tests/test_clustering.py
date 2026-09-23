@@ -8,7 +8,7 @@ from src.aml_graph.pipeline import run_pipeline
 
 
 class ClusteringTests(unittest.TestCase):
-    def test_connected_communities_split_without_losing_isolates(self):
+    def test_bridge_splits_communities_but_retains_components_and_isolate(self):
         graph = nx.DiGraph()
         graph.add_nodes_from(range(9))
         for members in [range(4), range(4, 8)]:
@@ -19,32 +19,41 @@ class ClusteringTests(unittest.TestCase):
         scored = pd.DataFrame({'gid': range(9), 'component_id': [1]*8+[2],
                                'role': ['peripheral']*9, 'priority_score': [0.5]*9,
                                'is_seed': [False]*9})
-        clusters = assign_clusters(graph, scored)
-        mapping = clusters.set_index('gid').cluster_id.to_dict()
-        self.assertEqual(len(set(mapping[g] for g in range(4))), 1)
-        self.assertEqual(len(set(mapping[g] for g in range(4, 8))), 1)
-        self.assertNotEqual(mapping[0], mapping[4])
-        self.assertNotIn(mapping[8], [mapping[0], mapping[4]])
-        reordered = nx.DiGraph()
-        reordered.add_nodes_from(reversed(list(graph)))
-        reordered.add_edges_from(reversed(list(graph.edges(data=True))))
-        other = assign_clusters(reordered, scored.iloc[::-1]).set_index('gid').cluster_id.to_dict()
-        self.assertEqual(mapping, other)
-        summary = summarize_clusters(graph, clusters)
-        # The bridge between communities is not internal volume.
+        clustered = assign_clusters(graph, scored)
+        summary = summarize_clusters(graph, clustered)
+        self.assertEqual(summary.n_nodes.tolist(), [4, 4, 1])
+        self.assertEqual(summary.cluster_id.tolist(), [1, 2, 3])
         self.assertEqual(summary.sum_kzt_internal.sum(), 240000)
-        self.assertEqual(summary.n_nodes.sum(), 9)
-        pd.testing.assert_series_equal(clusters.component_id, scored.component_id)
+        self.assertEqual(clustered.component_id.tolist(), scored.component_id.tolist())
+        reversed_graph = nx.DiGraph()
+        reversed_graph.add_nodes_from(reversed(list(graph)))
+        reversed_graph.add_edges_from(reversed(list(graph.edges(data=True))))
+        reversed_scored = assign_clusters(reversed_graph, scored.iloc[::-1])
+        self.assertEqual(clustered.set_index('gid').cluster_id.to_dict(), reversed_scored.set_index('gid').cluster_id.to_dict())
+        self.assertIn('Isolated', summary.hypothesis.iloc[-1])
+
+    def test_all_isolates_remain_separate(self):
+        graph = nx.DiGraph()
+        graph.add_nodes_from([1, 2, 3])
+        scored = assign_clusters(graph, pd.DataFrame({'gid':[1,2,3]}))
+        self.assertEqual(scored.cluster_id.tolist(), [1, 2, 3])
 
     @unittest.skipUnless(Path('entryset/nodes.parquet').exists(), 'Local dataset required')
-    def test_real_data_communities_and_unchanged_scores(self):
+    def test_real_communities_cover_all_accounts_without_changing_scores(self):
         with tempfile.TemporaryDirectory() as folder:
             result = run_pipeline('entryset', folder)
             scored, report = result['metrics'], result['report']
             self.assertGreater(report['n_clusters'], report['n_components'])
+            components = sorted(nx.weakly_connected_components(result['graph']), key=min)
+            expected = {gid: cid for cid, group in enumerate(components, 1) for gid in group}
+            self.assertEqual(scored.set_index('gid').component_id.to_dict(), expected)
             self.assertLess(result['clusters'].n_nodes.max(), scored.component_size.max())
-            self.assertTrue((scored.groupby('cluster_id').component_id.nunique() == 1).all())
-            self.assertEqual(scored.cluster_id.nunique(), len(result['clusters']))
+            self.assertEqual(result['clusters'].n_nodes.sum(), len(scored))
+            for _, group in scored.groupby('cluster_id'):
+                self.assertEqual(group.component_id.nunique(), 1)
+                self.assertTrue(nx.is_weakly_connected(result['graph'].subgraph(group.gid)))
+            expected = scored.set_index('gid').cluster_id.to_dict()
             pd.testing.assert_series_equal(scored.priority_score, scored.total_flow.rank(method='min', pct=True).round(6), check_names=False)
-            print('Communities:',report['n_clusters'],'largest:',result['clusters'].n_nodes.max(),
-                  'isolated accounts:',int((scored.counterparty_count==0).sum()))
+            exports = pd.read_csv(result['paths']['nodes_roles'])
+            self.assertEqual(exports.set_index('gid').cluster_id.to_dict(), expected)
+            print('Communities:', report['n_clusters'], 'largest:', result['clusters'].n_nodes.max())

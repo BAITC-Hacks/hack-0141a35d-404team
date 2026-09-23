@@ -11,11 +11,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from openai import OpenAIError
+from openai import OpenAI, OpenAIError
 from src.aml_graph.pipeline import run_pipeline
 from src.aml_graph.patterns import resilience
 from src.aml_graph.assistant import Memory, answer
 from src.aml_graph.config import settings
+from src.aml_graph.ai_errors import describe_error
 
 ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="AML Graph", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -96,7 +97,7 @@ def index():
     page = ROOT / "frontend/dist/index.html"
     if not page.exists():
         raise HTTPException(503, "Build the frontend: npm --prefix frontend run build")
-    return FileResponse(page)
+    return FileResponse(page, headers={'Cache-Control': 'no-cache'})
 
 app.mount("/assets", StaticFiles(directory=ROOT / "frontend/dist/assets", check_dir=False), name="assets")
 
@@ -120,6 +121,28 @@ def simulate(request: ResilienceRequest):
 def chat_status():
     config = settings()
     return {'configured': bool(config['api_key']), 'model': config['model']}
+
+
+@app.post('/api/chat/check')
+def check_chat():
+    """Explicit, tiny connectivity check: no graph, question or history upload."""
+    config = settings()
+    if not config['api_key']:
+        raise HTTPException(503, detail={'code': 'missing_key', 'message': 'Set OPENAI_API_KEY in the server .env file.'})
+    if not chat_lock.acquire(blocking=False):
+        raise HTTPException(409, 'Another answer is in progress')
+    try:
+        with OpenAI(api_key=config['api_key'], timeout=20, max_retries=0) as client:
+            result = client.responses.create(model=config['model'], input='Reply with OK only.',
+                                             store=False, max_output_tokens=32, reasoning={'effort': 'none'})
+        if not result.output_text.strip():
+            raise HTTPException(502, detail={'code': 'empty', 'message': 'The model returned no text. Retry.'})
+        return {'connected': True, 'model': result.model}
+    except OpenAIError as exc:
+        code, message = describe_error(exc)
+        raise HTTPException(502, detail={'code': code, 'message': message}) from exc
+    finally:
+        chat_lock.release()
 
 class ChatRequest(BaseModel):
     dataset_id: str
@@ -161,7 +184,8 @@ def chat(request: ChatRequest):
         store.save(request.session_id, request.dataset_id, messages)
         return response
     except OpenAIError as exc:
-        raise HTTPException(502, 'OpenAI request failed. Check server key, model access, quota or connection.') from exc
+        code, message = describe_error(exc)
+        raise HTTPException(502, detail={'code': code, 'message': message}) from exc
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:

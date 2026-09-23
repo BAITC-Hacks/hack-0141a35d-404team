@@ -107,7 +107,13 @@ class Retriever:
 
 def answer(result, files, history, message, selected, language, client=None):
     config = settings()
-    client = client or OpenAI(api_key=config['api_key'], timeout=35, max_retries=0)
+    if client is None:
+        with OpenAI(api_key=config['api_key'], timeout=35, max_retries=0) as owned:
+            return _answer(result, files, history, message, selected, language, owned, config)
+    return _answer(result, files, history, message, selected, language, client, config)
+
+
+def _answer(result, files, history, message, selected, language, client, config):
     retriever = Retriever(result, files, history)
     # Fixed budgets: 8 recent messages / 8k chars, 4 local reads / 8k chars each.
     recent, budget = [], 8000

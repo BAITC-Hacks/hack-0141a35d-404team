@@ -6,6 +6,7 @@ const page=await browser.newPage({viewport:{width:1500,height:1050},reducedMotio
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
  await page.route('**/api/chat/status',r=>r.fulfill({json:{configured:false,model:'test-model'}}));
+ await page.route('**/api/chat/check',r=>r.fulfill({status:502,json:{detail:{code:'quota',message:'Provider quota error'}}}));
  await page.goto(base);
  await page.getByRole('button',{name:'Run analysis'}).click();
  await page.locator('.rank').first().click();
@@ -23,18 +24,23 @@ try{
  await page.getByRole('button',{name:/Analyst assistant/}).click();
  await expect(page.locator('.chat')).toContainText('OPENAI_API_KEY');
  await expect(page.getByRole('button',{name:'Send',exact:true})).toBeDisabled();
+ await page.getByRole('button',{name:'Check connection',exact:true}).click();
+ await expect(page.locator('.chat-error')).toContainText('API quota is exhausted');
  const chat=await page.locator('.chat').boundingBox(),controls=await page.locator('.map-controls').boundingBox();
  assert.ok(chat.y+chat.height<=controls.y,'Chat must sit above map controls');
  await page.getByRole('button',{name:'Expand',exact:true}).click();
  assert.ok((await page.locator('.chat').boundingBox()).height>chat.height);
  // UI-only model mock: no request reaches OpenAI and no API key is required.
  await page.route('**/api/chat/status',r=>r.fulfill({json:{configured:true,model:'test-model'}}));
+ await page.route('**/api/chat/check',r=>r.fulfill({json:{connected:true,model:'test-model'}}));
  await page.route('**/api/chat',r=>{
   const body=r.request().postDataJSON();assert.equal(typeof body.message,'string');assert.equal(body.selected_gid,gid);assert.ok(!('api_key' in body));
   return r.fulfill({json:{answer:`Observed evidence [gid:${gid}]`,gids:[gid],usage:{input_tokens:30,output_tokens:20},queries:[{kind:'node',chars:200}]}});
  });
  await page.reload();await page.getByRole('button',{name:'Run analysis'}).click();await page.locator('.rank').first().click();
  await page.getByRole('button',{name:/Analyst assistant/}).click();
+ await page.getByRole('button',{name:'Check connection',exact:true}).click();
+ await expect(page.locator('.chat-connection')).toContainText('Connected: test-model');
  await page.locator('.chat textarea').fill('Explain this account');await page.getByRole('button',{name:'Send',exact:true}).click();
  await expect(page.locator('.message.assistant')).toContainText('Observed evidence');
  await page.locator('.message.assistant .citation').click();
