@@ -1,18 +1,54 @@
 # AML Graph Analysis
 
-Local, explainable analysis of a directed transaction graph starting from known seed accounts. It produces the required CSV exports and a searchable Streamlit visualization.
+Local analysis of a directed transaction graph with a React frontend and a Python FastAPI backend. The original analytical modules and CSV schemas are unchanged by the frontend migration.
 
 ## Run
 
 ```powershell
 python -m pip install -r requirements.txt
-python run_pipeline.py --input entryset --output outputset
-streamlit run app.py
+cd frontend
+npm ci
+npm run build
+cd ..
+python app.py
 ```
 
 The pipeline reads `nodes.parquet`, `edges.parquet`, and `transactions.parquet`, preserving isolated nodes and validating required columns.
 
-The UI uses a lightweight inline SVG renderer rather than Plotly. Select English or Russian in the sidebar, focus a `gid`, and hover a node in the single network view. The bottom-right card shows its role, priority, and concise evidence. Streamlit's visible branding is hidden by the local page stylesheet.
+Open http://127.0.0.1:8000 and click **Run analysis**. After the initial frontend build, `python app.py` serves both the API and React app. Requires Python 3.11+ and Node.js 22+. All runtime assets are local; no CDN, Streamlit, Plotly, or external service is used.
+
+The custom canvas renderer fills the graph workspace. Scroll to zoom, drag to pan, or use Fit view. Search the exact gid or select a priority row to show a neighborhood. Click nodes to select them and hover for concise bottom-right evidence. Filter clusters and switch role/cluster colors. English/Russian text and role descriptions come from a local dictionary; the language choice persists in the browser. Layout coordinates are display-only and never enter analytical calculations.
+
+The folder field accepts a folder on the Python server containing all three parquet files, defaulting to `entryset/`. A web run generates its exports in a temporary folder and keeps the download bytes in local server memory until the next successful run or restart. Existing CLI outputs are not overwritten. This is a local, single-analyst application bound to loopback, without authentication or multi-user run isolation.
+
+The original batch command still writes all three outputs:
+
+```powershell
+python run_pipeline.py --input entryset --output outputset
+```
+
+For frontend development, run `python app.py` in one terminal and `npm run dev` from `frontend/` in another. Vite proxies `/api` to port 8000.
+
+## API and verification
+
+- `POST /api/analyze` with `{"input_dir":"entryset"}` runs the unchanged pipeline and returns report, nodes, edges, clusters, and execution time. IDs are strings in JSON to preserve int64 precision in JavaScript; CSV IDs remain unchanged.
+- `GET /api/exports/{name}` downloads one of the three fixed CSV filenames from the latest successful web run.
+- `GET /api/health` checks the backend; interactive API docs are at `/api/docs`.
+
+```powershell
+python -m unittest discover -s tests -v
+cd frontend
+npm test
+npm run build
+# With python app.py running; browser test uses installed Microsoft Edge:
+node tests/browser.mjs
+```
+
+The API regression test compares all three CSV downloads byte-for-byte with the direct pipeline and checks exact IDs, invalid inputs, and concurrent-run rejection. The browser test exercises analysis, search, zoom, translation, export, and mobile viewport rendering.
+
+## Task document and preserved baseline
+
+The task document defines required deliverables, role meanings, explainability, and data limitations; it does not prescribe exact scoring formulas. The rules below are the existing implementation's choices, preserved for this migration. Binary rule-match scores are not calibrated probabilities. In particular, the existing coordinator rule selects only maximally connected seeds, terminal rules may classify isolated nodes as terminals, and flow-ratio rules still operate on incomplete observations. This migration does not correct those analytical limitations or claim exact compliance with a document-defined formula.
 
 ## Role rules
 
